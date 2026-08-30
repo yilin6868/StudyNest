@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+:root {
+  --bg-top: #221d2e;
+  --bg-mid: #2a2338;
+  --bg-bottom: #342840;
+  --card: rgba(255, 255, 255, 0.06);
+  --card-border: rgba(255, 255, 255, 0.1);
+  --text: #f3f0ea;
+  --text-dim: #b9b3a8;
+  --accent: #ffb454;
+  --accent-2: #ff8f6b;
+  --green: #7ed6a0;
+  --danger: #ff7b7b;
+}
+
+@theme inline {
+  --color-foreground: var(--text);
+  --color-muted: var(--text-dim);
+  --color-surface: var(--card);
+  --color-line: var(--card-border);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-green: var(--green);
+  --color-danger: var(--danger);
+  --radius-card: 20px;
+}
+
+body {
+  background: linear-gradient(
+    160deg,
+    var(--bg-top) 0%,
+    var(--bg-mid) 55%,
+    var(--bg-bottom) 100%
+  );
+  background-attachment: fixed;
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI",
+    "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}

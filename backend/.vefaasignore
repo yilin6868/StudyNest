@@ -1,0 +1,14 @@
+# veFaaS 打包排除清单（防止密钥泄露 + 上传几百 MB 虚拟环境）
+.venv/
+venv/
+data/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+.env.local
+.vefaas/
+tests/
+.git/
+.gitignore
+.DS_Store

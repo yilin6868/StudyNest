@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#1f2430" />
+<title>自习室 · AI 学习搭子</title>
+<style>
+  :root {
+    --bg-top: #1f2430;
+    --bg-mid: #262b3a;
+    --bg-bottom: #2e2438;
+    --card: rgba(255, 255, 255, 0.06);
+    --card-border: rgba(255, 255, 255, 0.10);
+    --text: #f3f0ea;
+    --text-dim: #b9b3a8;
+    --accent: #ffb454;
+    --accent-2: #ff8f6b;
+    --green: #7ed6a0;
+    --blue: #7cb8ff;
+    --danger: #ff7b7b;
+    --radius: 18px;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", "Microsoft YaHei", sans-serif;
+    color: var(--text);
+    background: linear-gradient(160deg, var(--bg-top) 0%, var(--bg-mid) 55%, var(--bg-bottom) 100%);
+    background-attachment: fixed;
+    overscroll-behavior: none;
+  }
+
+  body { -webkit-font-smoothing: antialiased; }
+
+  /* 顶部氛围光 */
+  .glow {
+    position: fixed;
+    width: 300px; height: 300px;
+    border-radius: 50%;
+    filter: blur(90px);
+    opacity: 0.35;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .glow-1 { top: -80px; left: -60px; background: #ffb454; }
+  .glow-2 { top: 30%; right: -90px; background: #7cb8ff; opacity: 0.22; }
+
+  .app {
+    position: relative;
+    z-index: 1;
+    max-width: 460px;
+    margin: 0 auto;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    padding: 0 14px 14px;
+  }
+
+  /* ===== 顶栏 ===== */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 4px 8px;
+  }
+  .brand { display: flex; align-items: center; gap: 8px; }
+  .brand .logo {
+    width: 34px; height: 34px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    display: grid; place-items: center;
+    font-size: 18px;
+    box-shadow: 0 4px 14px rgba(255, 180, 84, 0.35);
+  }
+  .brand h1 { font-size: 17px; margin: 0; font-weight: 700; letter-spacing: 0.5px; }
+  .brand .sub { font-size: 11px; color: var(--text-dim); }
+  .header-stats { display: flex; gap: 6px; }
+  .stat-pill {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 999px;
+    padding: 5px 10px;
+    font-size: 11px;
+    color: var(--text-dim);
+    display: flex; align-items: center; gap: 4px;
+    white-space: nowrap;
+  }
+  .stat-pill b { color: var(--text); font-weight: 700; }
+
+  /* ===== 搭子区 ===== */
+  .buddy-stage {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 0 6px;
+    position: relative;
+  }
+  .buddy {
+    position: relative;
+    width: 96px; height: 96px;
+    border-radius: 50%;
+    background: linear-gradient(145deg, #ffd28a, #ffb454 55%, #ff8f6b);
+    box-shadow: 0 10px 30px rgba(255, 160, 80, 0.35), inset 0 -6px 14px rgba(0,0,0,0.12);
+    display: grid; place-items: center;
+    font-size: 48px;
+    cursor: pointer;
+    transition: transform 0.25s cubic-bezier(.34,1.56,.64,1);
+    user-select: none;
+  }
+  .buddy:active { transform: scale(0.92); }
+  .buddy.talking { animation: buddy-pop 0.6s ease; }
+  .buddy .aura {
+    position: absolute; inset: -14px;
+    border-radius: 50%;
+    border: 2px dashed rgba(255, 210, 138, 0.5);
+    animation: spin 18s linear infinite;
+    pointer-events: none;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes buddy-pop {
+    0% { transform: scale(1); }
+    35% { transform: scale(1.12) rotate(-3deg); }
+    70% { transform: scale(0.96) rotate(2deg); }
+    100% { transform: scale(1); }
+  }
+  .buddy-name {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+  }
+
+  /* 气泡 */
+  .bubble-wrap { width: 100%; margin-top: 6px; }
+  .bubble {
+    position: relative;
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 16px 16px 16px 4px;
+    padding: 12px 14px;
+    font-size: 14px;
+    line-height: 1.65;
+    color: var(--text);
+    min-height: 46px;
+    word-break: break-word;
+  }
+  .bubble.typing::after {
+    content: "▍";
+    display: inline-block;
+    animation: blink 0.9s steps(2) infinite;
+    margin-left: 2px;
+    color: var(--accent);
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+  .quick-replies {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .quick-replies button {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    color: var(--text);
+    border-radius: 999px;
+    padding: 8px 13px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .quick-replies button:active { transform: scale(0.95); background: rgba(255,255,255,0.12); }
+
+  /* ===== 计时器 ===== */
+  .timer-card {
+    margin-top: 14px;
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    padding: 18px 16px;
+    text-align: center;
+  }
+  .timer-tabs {
+    display: flex;
+    gap: 6px;
+    background: rgba(0,0,0,0.22);
+    border-radius: 12px;
+    padding: 4px;
+    margin-bottom: 14px;
+  }
+  .timer-tabs button {
+    flex: 1;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    padding: 8px 0;
+    border-radius: 9px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.2s;
+  }
+  .timer-tabs button.active {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #241a0e;
+  }
+  .timer-display {
+    font-size: 58px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    margin: 6px 0 2px;
+  }
+  .timer-display.running { color: var(--accent); text-shadow: 0 0 24px rgba(255,180,84,0.35); }
+  .timer-hint { font-size: 12px; color: var(--text-dim); margin-bottom: 14px; min-height: 16px; }
+  .timer-controls { display: flex; gap: 10px; justify-content: center; }
+  .btn {
+    border: none;
+    border-radius: 13px;
+    padding: 12px 22px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    transition: transform 0.15s, opacity 0.15s;
+  }
+  .btn:active { transform: scale(0.96); }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #241a0e;
+    box-shadow: 0 6px 18px rgba(255, 160, 80, 0.35);
+    flex: 1;
+    max-width: 220px;
+  }
+  .btn-ghost {
+    background: rgba(255,255,255,0.08);
+    color: var(--text);
+    border: 1px solid var(--card-border);
+  }
+
+  /* ===== 今日目标 ===== */
+  .goal-card {
+    margin-top: 12px;
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .goal-card .goal-icon { font-size: 20px; }
+  .goal-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-size: 14px;
+    font-family: inherit;
+  }
+  .goal-input::placeholder { color: var(--text-dim); opacity: 0.7; }
+
+  /* ===== 聊天记录 ===== */
+  .chat {
+    flex: 1;
+    margin-top: 12px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 4px 2px;
+    max-height: 40vh;
+  }
+  .msg { max-width: 85%; font-size: 14px; line-height: 1.6; padding: 10px 13px; border-radius: 15px; word-break: break-word; animation: msg-in 0.25s ease; }
+  @keyframes msg-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .msg.buddy { align-self: flex-start; background: rgba(255,255,255,0.08); border: 1px solid var(--card-border); border-bottom-left-radius: 4px; }
+  .msg.user { align-self: flex-end; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #241a0e; border-bottom-right-radius: 4px; font-weight: 500; }
+
+  /* ===== 底部输入 ===== */
+  .input-bar {
+    position: sticky;
+    bottom: 0;
+    margin-top: 10px;
+    display: flex;
+    gap: 8px;
+    padding: 8px 0 calc(10px + env(safe-area-inset-bottom));
+    background: linear-gradient(transparent, rgba(31,36,48,0.9) 40%);
+  }
+  .input-bar input {
+    flex: 1;
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 999px;
+    padding: 12px 16px;
+    color: var(--text);
+    font-size: 14px;
+    outline: none;
+    font-family: inherit;
+  }
+  .input-bar input:focus { border-color: rgba(255,180,84,0.5); }
+  .input-bar .send {
+    width: 46px; height: 46px;
+    border-radius: 50%;
+    border: none;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    font-size: 20px;
+    cursor: pointer;
+    display: grid; place-items: center;
+    flex-shrink: 0;
+  }
+  .input-bar .send:active { transform: scale(0.92); }
+
+  /* ===== 设置弹窗 ===== */
+  .modal-mask {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(4px);
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 20;
+  }
+  .modal-mask.show { display: flex; }
+  .modal {
+    background: #2a2f3e;
+    border-radius: 20px 20px 0 0;
+    width: 100%;
+    max-width: 460px;
+    padding: 22px 18px calc(24px + env(safe-area-inset-bottom));
+    animation: slide-up 0.25s ease;
+  }
+  @keyframes slide-up { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .modal h3 { margin: 0 0 14px; font-size: 16px; }
+  .modal .field { margin-bottom: 12px; }
+  .modal label { display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 5px; }
+  .modal input, .modal textarea {
+    width: 100%;
+    background: rgba(0,0,0,0.25);
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    color: var(--text);
+    font-size: 13px;
+    outline: none;
+    font-family: inherit;
+  }
+  .modal .note { font-size: 11px; color: var(--text-dim); line-height: 1.6; margin-top: 6px; }
+  .modal .row { display: flex; gap: 10px; margin-top: 14px; }
+  .modal .row .btn { flex: 1; }
+  .gear-btn {
+    background: none; border: none; font-size: 18px; cursor: pointer; opacity: 0.7;
+  }
+  .gear-btn:active { opacity: 1; }
+</style>
+</head>
+<body>
+  <div class="glow glow-1"></div>
+  <div class="glow glow-2"></div>
+
+  <div class="app">
+    <header>
+      <div class="brand">
+        <div class="logo">📚</div>
+        <div>
+          <h1>自习室</h1>
+          <div class="sub">AI 学习搭子 · 陪你一起学</div>
+        </div>
+      </div>
+      <div class="header-stats">
+        <div class="stat-pill">🔥 <b id="streak">0</b>天</div>
+        <div class="stat-pill">🍅 <b id="tomato">0</b></div>
+        <button class="gear-btn" id="gearBtn" aria-label="设置">⚙️</button>
+      </div>
+    </header>
+
+    <div class="buddy-stage">
+      <div class="buddy" id="buddy" title="点我互动">
+        <span>🦉</span>
+        <div class="aura"></div>
+      </div>
+      <div class="buddy-name">你的搭子「小悟」</div>
+      <div class="bubble-wrap">
+        <div class="bubble" id="bubble">……</div>
+      </div>
+      <div class="quick-replies" id="quickReplies">
+        <button data-q="求鼓励">💪 求鼓励</button>
+        <button data-q="我有点累了">🥱 我累了</button>
+        <button data-q="我完成了一个番茄钟">🍅 打卡</button>
+        <button data-q="给我讲讲学习方法">📖 学习方法</button>
+      </div>
+    </div>
+
+    <div class="timer-card">
+      <div class="timer-tabs">
+        <button id="tabFocus" class="active">专注</button>
+        <button id="tabBreak">休息</button>
+      </div>
+      <div class="timer-display" id="timerDisplay">25:00</div>
+      <div class="timer-hint" id="timerHint">点「开始」，搭子陪你一起专注</div>
+      <div class="timer-controls">
+        <button class="btn btn-primary" id="startBtn">开始专注</button>
+        <button class="btn btn-ghost" id="resetBtn">重置</button>
+      </div>
+    </div>
+
+    <div class="goal-card">
+      <span class="goal-icon">🎯</span>
+      <input class="goal-input" id="goalInput" placeholder="今天要学什么？写下目标…" maxlength="60" />
+    </div>
+
+    <div class="chat" id="chat"></div>
+
+    <div class="input-bar">
+      <input id="msgInput" placeholder="和搭子说句话…" maxlength="200" />
+      <button class="send" id="sendBtn">➤</button>
+    </div>
+  </div>
+
+  <!-- 设置弹窗 -->
+  <div class="modal-mask" id="modalMask">
+    <div class="modal">
+      <h3>⚙️ 设置 · 真·AI 模式</h3>
+      <div class="field">
+        <label>AI 接口地址（OpenAI 兼容）</label>
+        <input id="cfgBase" placeholder="如 https://api.deepseek.com/v1" />
+      </div>
+      <div class="field">
+        <label>API Key</label>
+        <input id="cfgKey" type="password" placeholder="sk-..." />
+      </div>
+      <div class="field">
+        <label>模型名</label>
+        <input id="cfgModel" placeholder="如 deepseek-chat" />
+      </div>
+      <div class="field">
+        <label>人设提示词（可选）</label>
+        <textarea id="cfgPrompt" rows="3" placeholder="自定义搭子的人设…"></textarea>
+      </div>
+      <div class="note">
+        💡 不填 Key 时，搭子用「内置鼓励引擎」离线陪你（无需联网/不花钱）。填入 DeepSeek / 豆包 / GLM 等 OpenAI 兼容接口后，聊天会走真·大模型。密钥仅保存在你手机本地。
+      </div>
+      <div class="row">
+        <button class="btn btn-ghost" id="cfgCancel">取消</button>
+        <button class="btn btn-primary" id="cfgSave">保存</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ==================== 状态 ====================
+  const LS = {
+    stats: "sb_stats",      // 番茄数/天数等
+    goal: "sb_goal",
+    cfg: "sb_cfg",
+  };
+
+  const DEFAULTS = {
+    focus: 25 * 60,
+    break: 5 * 60,
+  };
+
+  let mode = "focus";            // focus | break
+  let remaining = DEFAULTS.focus;
+  let running = false;
+  let timerId = null;
+  let goal = "";
+  let lastHalfDone = false;      // 是否已在中途鼓励过
+
+  // ==================== 工具 ====================
+  const $ = (s) => document.querySelector(s);
+  const todayKey = () => new Date().toISOString().slice(0, 10);
+  const fmt = (s) => {
+    s = Math.max(0, Math.floor(s));
+    return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
+  };
+
+  function loadStats() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(LS.stats) || "{}");
+      if (raw.date !== todayKey()) {
+        // 新的一天：保留 streak 逻辑
+        const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+        const streak = raw.date === yesterday ? (raw.streak || 0) : 0;
+        return { date: todayKey(), tomato: 0, minutes: 0, streak };
+      }
+      return raw;
+    } catch { return { date: todayKey(), tomato: 0, minutes: 0, streak: 0 }; }
+  }
+  function saveStats(s) { localStorage.setItem(LS.stats, JSON.stringify(s)); }
+
+  let stats = loadStats();
+
+  function loadGoal() { goal = localStorage.getItem(LS.goal) || ""; $("#goalInput").value = goal; }
+  function saveGoal(v) { goal = v; localStorage.setItem(LS.goal, v); }
+
+  function loadCfg() {
+    try { return JSON.parse(localStorage.getItem(LS.cfg) || "{}"); } catch { return {}; }
+  }
+
+  // ==================== 内置鼓励引擎 ====================
+  const PHRASES = {
+    greet: [
+      "嗨！我是你的学习搭子「小悟」🦉 今天也一起加油吧！先定个小目标，然后点「开始专注」～",
+      "你来啦！我等你好久了 😊 学习路上不孤单，我陪着你。今天想学什么？",
+      "晚上好～这里是你的专属自习室 🪴 把手机放一边，我们一起开始吧！",
+    ],
+    start: [
+      "好，进入专注模式！我会安静陪着你，有需要随时叫我 💪",
+      "开始啦！接下来的 25 分钟，只属于你和眼前的知识 🌱",
+      "深吸一口气，我们开始了。走神了也没关系，回来就好 🍃",
+    ],
+    encourage: [
+      "你已经很棒了，能坐在这里就是胜利的第一步 🌟",
+      "别怕慢，只怕停。你现在的每一步都算数 💪",
+      "学习就像爬山，累是因为你在走上坡路 🏔️",
+      "把大目标切成小块，一块一块啃下来，我陪你 🍰",
+      "允许自己不会，但别允许自己放弃。你可以的 ✨",
+      "我偷偷告诉你：坚持到最后的人，运气都不会差 🍀",
+      "今天学一点，明天轻松一点。一起慢慢变厉害 📈",
+      "你不需要和任何人比，只要比昨天的自己前进一点点就好 🌙",
+    ],
+    tired: [
+      "累了吧？先喝口水，站起来伸个懒腰 🥤 休息 5 分钟再回来，我等你。",
+      "辛苦了！你已经坚持很久了。眼睛看看远处，放松一下 👀",
+      "累了就休息，这不叫放弃，这叫给自己充电 🔋 充好电再战！",
+    ],
+    celebrate: [
+      "🎉 太厉害了！一个番茄钟完成！休息一下，你值得！",
+      "🍅 打卡成功！专注的你就是最有魅力的时候！",
+      "完成啦！给自己鼓个掌 👏 喝口水，活动活动～",
+    ],
+    breakOver: [
+      "休息得怎么样？该回来啦，我准备好陪你进入下一个专注了 😊",
+      "充电完毕 🔋 准备好了就点「开始」，我们再来一轮！",
+      "休息结束～知识在等你，我也在等你 🦉",
+    ],
+    method: [
+      "分享一个小方法：用「费曼学习法」——把刚学的讲给一个假想的人听，讲不明白就是没真懂 📝",
+      "试试「番茄工作法」：25 分钟专注 + 5 分钟休息，劳逸结合效率最高 🍅",
+      "记忆小技巧：睡前 15 分钟复习，睡眠会帮你把知识「存档」🧠",
+      "把目标写下来并拆成最小可执行步骤，每完成一项就打个勾，成就感会推着你走 ✅",
+    ],
+    fallback: [
+      "嗯嗯，我在听～不管说什么，我都会陪着你的 🦉",
+      "收到！学习路上有情绪很正常，我懂你 🤝",
+      "好呀，我们一步一步来。需要我鼓励你还是给你出主意？",
+    ],
+  };
+
+  function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+  function localReply(input) {
+    const t = (input || "").trim();
+    if (!t) return pick(PHRASES.greet);
+    if (/累|困|疲惫|想睡|休息|撑不住|没力气/.test(t)) return pick(PHRASES.tired);
+    if (/鼓励|加油|打气|没动力|不想学|坚持不住|好难|学不进去|颓|沮丧|焦虑/.test(t)) return pick(PHRASES.encourage);
+    if (/方法|怎么学|记不住|记不牢|效率|专注|背单词|复习|预习/.test(t)) return pick(PHRASES.method);
+    if (/完成|打卡|学完|搞定|做完|结束|番茄|胜利|成功|完成啦/.test(t)) return pick(PHRASES.celebrate);
+    if (/你好|嗨|hi|hello|在吗|你是谁|早上好|下午好|晚上好/.test(t)) return pick(PHRASES.greet);
+    if (/目标|计划|今天学|我要学|打算/.test(t)) return "有目标就很棒！把它写在上面 🎯 然后点「开始专注」，我们一起拿下它 💪";
+    return pick(PHRASES.fallback);
+  }
+
+  // ==================== 真·AI 模式（OpenAI 兼容） ====================
+  let aiBusy = false;
+  async function aiReply(input) {
+    const cfg = loadCfg();
+    if (!cfg.base || !cfg.key) return localReply(input);
+
+    const system = cfg.prompt || "你是用户的学习搭子「小悟」，温暖、幽默、有同理心。用户在学习，你要鼓励、陪伴、给实用建议。回复简短（一般不超过 80 字），口语化，用中文，适当用 emoji。";
+    try {
+      const res = await fetch(cfg.base.replace(/\/+$/, "") + "/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + cfg.key,
+        },
+        body: JSON.stringify({
+          model: cfg.model || "deepseek-chat",
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: input },
+          ],
+          temperature: 0.8,
+          max_tokens: 300,
+        }),
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const data = await res.json();
+      const text = data?.choices?.[0]?.message?.content?.trim();
+      return text || localReply(input);
+    } catch (e) {
+      console.warn("AI 接口失败，回退到内置引擎", e);
+      return localReply(input);
+    }
+  }
+
+  // ==================== UI 渲染 ====================
+  const bubble = $("#bubble");
+  const chat = $("#chat");
+
+  function renderStats() {
+    $("#streak").textContent = stats.streak || 0;
+    $("#tomato").textContent = stats.tomato || 0;
+  }
+
+  function renderTimer() {
+    $("#timerDisplay").textContent = fmt(remaining);
+    $("#timerDisplay").classList.toggle("running", running);
+    const isBreak = mode === "break";
+    $("#tabFocus").classList.toggle("active", !isBreak);
+    $("#tabBreak").classList.toggle("active", isBreak);
+    $("#startBtn").textContent = running ? "暂停" : (isBreak ? "开始休息" : (remaining < DEFAULTS.focus ? "继续专注" : "开始专注"));
+    if (!running) {
+      $("#timerHint").textContent = isBreak ? "休息是为了更好地出发 🌿" : "点「开始」，搭子陪你一起专注";
+    }
+  }
+
+  function speak(text, { typing = true } = {}) {
+    const full = text;
+    bubble.classList.remove("typing");
+    $("#buddy").classList.remove("talking");
+
+    if (!typing) {
+      bubble.textContent = full;
+      $("#buddy").classList.add("talking");
+      setTimeout(() => $("#buddy").classList.remove("talking"), 600);
+      addChat("buddy", full);
+      return;
+    }
+
+    // 打字机效果
+    bubble.classList.add("typing");
+    $("#buddy").classList.add("talking");
+    let i = 0;
+    const step = Math.max(1, Math.round(full.length / 40));
+    bubble.textContent = "";
+    const iv = setInterval(() => {
+      i += step;
+      bubble.textContent = full.slice(0, i);
+      if (i >= full.length) {
+        clearInterval(iv);
+        bubble.classList.remove("typing");
+        setTimeout(() => $("#buddy").classList.remove("talking"), 500);
+        addChat("buddy", full);
+      }
+    }, 30);
+  }
+
+  function addChat(who, text) {
+    const div = document.createElement("div");
+    div.className = "msg " + who;
+    div.textContent = text;
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function userSay(text) {
+    addChat("user", text);
+    // 用意图提示改进真 AI 输入
+    const enriched = text + (goal && /完成|打卡|开始|专注/.test(text) ? "（我的今日目标是：" + goal + "）" : "");
+    setBusy(true);
+    (aiReply(enriched)).then((reply) => {
+      speak(reply);
+      setBusy(false);
+    });
+  }
+
+  function setBusy(b) {
+    aiBusy = b;
+    $("#sendBtn").style.opacity = b ? 0.4 : 1;
+  }
+
+  // ==================== 计时器逻辑 ====================
+  function setMode(m) {
+    if (running) stopTimer();
+    mode = m;
+    remaining = m === "focus" ? DEFAULTS.focus : DEFAULTS.break;
+    lastHalfDone = false;
+    renderTimer();
+  }
+
+  function startTimer() {
+    if (running) { stopTimer(); return; }
+    running = true;
+    const isBreak = mode === "break";
+    if (!isBreak && !lastHalfDone && remaining === DEFAULTS.focus) {
+      speak(pick(PHRASES.start));
+    } else if (isBreak) {
+      speak("休息时间～去喝口水、看看远方，放松眼睛 👀");
+    }
+    timerId = setInterval(tick, 1000);
+    renderTimer();
+  }
+
+  function stopTimer() {
+    running = false;
+    clearInterval(timerId);
+    timerId = null;
+    renderTimer();
+  }
+
+  function resetTimer() {
+    stopTimer();
+    remaining = mode === "focus" ? DEFAULTS.focus : DEFAULTS.break;
+    lastHalfDone = false;
+    renderTimer();
+  }
+
+  function tick() {
+    remaining--;
+    if (mode === "focus" && !lastHalfDone && remaining <= DEFAULTS.focus / 2) {
+      lastHalfDone = true;
+      speak(pick(PHRASES.encourage));
+    }
+    if (remaining <= 0) {
+      finish();
+      return;
+    }
+    renderTimer();
+  }
+
+  function finish() {
+    stopTimer();
+    if (mode === "focus") {
+      // 完成一个番茄
+      stats.tomato = (stats.tomato || 0) + 1;
+      stats.minutes = (stats.minutes || 0) + Math.round(DEFAULTS.focus / 60);
+      if (!stats.streak || stats.streak < 1) stats.streak = 1;
+      saveStats(stats);
+      renderStats();
+      speak(pick(PHRASES.celebrate));
+      setMode("break");
+    } else {
+      speak(pick(PHRASES.breakOver));
+      setMode("focus");
+    }
+  }
+
+  // ==================== 事件绑定 ====================
+  $("#tabFocus").addEventListener("click", () => setMode("focus"));
+  $("#tabBreak").addEventListener("click", () => setMode("break"));
+  $("#startBtn").addEventListener("click", startTimer);
+  $("#resetBtn").addEventListener("click", resetTimer);
+
+  $("#buddy").addEventListener("click", () => speak(pick(PHRASES.encourage)));
+
+  $("#goalInput").addEventListener("change", (e) => {
+    saveGoal(e.target.value.trim());
+    if (goal) speak("目标收到！「" + goal + "」——我们出发吧 🚀", { typing: false });
+  });
+
+  $("#quickReplies").addEventListener("click", (e) => {
+    const btn = e.target.closest("button");
+    if (!btn) return;
+    userSay(btn.dataset.q);
+  });
+
+  function send() {
+    const inp = $("#msgInput");
+    const text = inp.value.trim();
+    if (!text || aiBusy) return;
+    inp.value = "";
+    userSay(text);
+  }
+  $("#sendBtn").addEventListener("click", send);
+  $("#msgInput").addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
+
+  // 设置弹窗
+  $("#gearBtn").addEventListener("click", () => {
+    const cfg = loadCfg();
+    $("#cfgBase").value = cfg.base || "";
+    $("#cfgKey").value = cfg.key || "";
+    $("#cfgModel").value = cfg.model || "";
+    $("#cfgPrompt").value = cfg.prompt || "";
+    $("#modalMask").classList.add("show");
+  });
+  $("#cfgCancel").addEventListener("click", () => $("#modalMask").classList.remove("show"));
+  $("#modalMask").addEventListener("click", (e) => { if (e.target === e.currentTarget) $("#modalMask").classList.remove("show"); });
+  $("#cfgSave").addEventListener("click", () => {
+    localStorage.setItem(LS.cfg, JSON.stringify({
+      base: $("#cfgBase").value.trim(),
+      key: $("#cfgKey").value.trim(),
+      model: $("#cfgModel").value.trim(),
+      prompt: $("#cfgPrompt").value.trim(),
+    }));
+    $("#modalMask").classList.remove("show");
+    speak("设置已保存 ✅ " + ($("#cfgKey").value.trim() ? "现在我会用真·AI 陪你聊天啦！" : "继续用内置鼓励引擎陪你（离线也能聊）"), { typing: false });
+  });
+
+  // 初始化
+  renderStats();
+  renderTimer();
+  loadGoal();
+  const cfg = loadCfg();
+  speak(cfg.key ? "欢迎回来！真·AI 模式已开启，今天想学点什么？😊" : pick(PHRASES.greet));
+})();
+</script>
+</body>
+</html>

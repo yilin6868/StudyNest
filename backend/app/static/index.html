@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#221d2e" />
+<title>视频自习室 · AI 学习搭子</title>
+<style>
+  :root {
+    --bg-top: #221d2e;
+    --bg-mid: #2a2338;
+    --bg-bottom: #342840;
+    --card: rgba(255, 255, 255, 0.06);
+    --card-border: rgba(255, 255, 255, 0.10);
+    --text: #f3f0ea;
+    --text-dim: #b9b3a8;
+    --accent: #ffb454;
+    --accent-2: #ff8f6b;
+    --green: #7ed6a0;
+    --radius: 20px;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", "Microsoft YaHei", sans-serif;
+    color: var(--text);
+    background: linear-gradient(160deg, var(--bg-top) 0%, var(--bg-mid) 55%, var(--bg-bottom) 100%);
+    background-attachment: fixed;
+    overscroll-behavior: none;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .glow {
+    position: fixed; width: 320px; height: 320px; border-radius: 50%;
+    filter: blur(95px); opacity: 0.30; pointer-events: none; z-index: 0;
+  }
+  .glow-1 { top: -90px; left: -70px; background: #ffb454; }
+  .glow-2 { top: 34%; right: -100px; background: #7cb8ff; opacity: 0.20; }
+
+  .app {
+    position: relative; z-index: 1;
+    max-width: 480px; margin: 0 auto;
+    min-height: 100dvh;
+    display: flex; flex-direction: column;
+  }
+
+  .page { display: none; }
+  .page.active { display: flex; flex-direction: column; flex: 1; }
+
+  /* ==================== 陪伴页 ==================== */
+  #pageChat.active { padding: 10px 12px calc(12px + env(safe-area-inset-bottom)); }
+
+  .voice-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 4px 10px;
+  }
+  .voice-label { font-size: 13px; color: var(--text-dim); }
+  .toggle {
+    width: 46px; height: 26px; border-radius: 999px;
+    background: rgba(255,255,255,0.12);
+    position: relative; cursor: pointer; transition: background 0.25s;
+    flex-shrink: 0;
+  }
+  .toggle .toggle-knob {
+    position: absolute; top: 3px; left: 3px;
+    width: 20px; height: 20px; border-radius: 50%;
+    background: #fff; transition: left 0.25s;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  }
+  .toggle.on { background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+  .toggle.on .toggle-knob { left: 23px; }
+
+  .video-stage {
+    position: relative;
+    border-radius: var(--radius);
+    overflow: hidden;
+    height: 46vh;
+    min-height: 300px;
+    background:
+      radial-gradient(120% 90% at 50% 0%, rgba(255,180,84,0.16) 0%, transparent 55%),
+      radial-gradient(80% 60% at 85% 100%, rgba(124,184,255,0.12) 0%, transparent 60%),
+      linear-gradient(180deg, #312840 0%, #3a2c44 100%);
+    border: 1px solid var(--card-border);
+    box-shadow: 0 18px 40px rgba(0,0,0,0.35);
+    display: flex; flex-direction: column;
+  }
+  .call-topbar {
+    position: absolute; top: 0; left: 0; right: 0;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 14px;
+    background: linear-gradient(180deg, rgba(0,0,0,0.30), transparent);
+    z-index: 3;
+  }
+  .call-id { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--text); font-weight: 600; }
+  .call-id .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 1.6s infinite; }
+  @keyframes pulse { 50% { opacity: 0.4; } }
+  .call-tag { font-size: 11px; color: var(--text-dim); background: rgba(255,255,255,0.08); border-radius: 999px; padding: 4px 10px; }
+
+  .buddy-stage { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-top: 34px; }
+  .buddy-wrap {
+    position: relative;
+    width: 150px; height: 150px;
+    display: grid; place-items: center;
+    cursor: pointer;
+    animation: breathe 4.2s ease-in-out infinite;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  @keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.025); } }
+
+  .buddy-avatar {
+    width: 144px; height: 144px;
+    border-radius: 50%;
+    object-fit: cover;
+    object-position: center 35%;
+    border: 3px solid rgba(255,255,255,0.16);
+    box-shadow: 0 18px 40px rgba(0,0,0,0.45);
+    transition: box-shadow 0.3s;
+  }
+  .buddy-wrap.talking .buddy-avatar {
+    animation: glow-pulse 1.3s ease-in-out infinite;
+    box-shadow: 0 0 0 5px rgba(255,180,84,0.30), 0 0 40px rgba(255,180,84,0.45), 0 18px 40px rgba(0,0,0,0.45);
+  }
+  @keyframes glow-pulse {
+    0%, 100% { filter: brightness(1); }
+    50% { filter: brightness(1.12); }
+  }
+  .buddy-wrap:active .buddy-avatar { transform: scale(0.97); }
+
+  .buddy-meta { margin-top: 8px; text-align: center; z-index: 3; }
+  .buddy-name { font-size: 16px; font-weight: 700; letter-spacing: 0.5px; }
+  .buddy-status { font-size: 11px; color: var(--text-dim); margin-top: 3px; }
+
+  .buddy-switch { display: flex; gap: 8px; margin-top: 10px; }
+  .buddy-switch button {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--card); border: 1px solid var(--card-border); color: var(--text-dim);
+    border-radius: 999px; padding: 6px 13px; font-size: 13px; cursor: pointer;
+    transition: all 0.2s; font-family: inherit;
+  }
+  .buddy-switch button.active {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #241a0e; border-color: transparent; font-weight: 700;
+  }
+
+  .subtitle-wrap { margin-top: 12px; padding: 0 2px; }
+  .subtitle {
+    min-height: 30px;
+    font-size: 17px; line-height: 1.6; font-weight: 500;
+    color: var(--text);
+    word-break: break-word;
+  }
+  .subtitle.typing::after, .focus-bubble.typing::after { content: "▍"; color: var(--accent); animation: caret 0.9s steps(2) infinite; margin-left: 2px; }
+  @keyframes caret { 50% { opacity: 0; } }
+
+  .quick-replies { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .quick-replies button {
+    background: var(--card); border: 1px solid var(--card-border); color: var(--text);
+    border-radius: 999px; padding: 8px 14px; font-size: 13px; cursor: pointer;
+    transition: all 0.15s; font-family: inherit;
+  }
+  .quick-replies button:active { transform: scale(0.95); background: rgba(255,255,255,0.12); }
+
+  .chat { flex: 1; margin-top: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 4px 2px; min-height: 0; }
+  .msg { max-width: 85%; font-size: 14px; line-height: 1.55; padding: 9px 12px; border-radius: 14px; word-break: break-word; animation: msg-in 0.25s ease; }
+  @keyframes msg-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .msg.buddy { align-self: flex-start; background: rgba(255,255,255,0.08); border: 1px solid var(--card-border); border-bottom-left-radius: 4px; }
+  .msg.user { align-self: flex-end; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #241a0e; border-bottom-right-radius: 4px; font-weight: 500; }
+
+  .input-bar { position: sticky; bottom: 0; margin-top: 10px; display: flex; gap: 8px; padding: 8px 0 0; background: linear-gradient(transparent, rgba(34,29,46,0.92) 40%); }
+  .input-bar input {
+    flex: 1; background: var(--card); border: 1px solid var(--card-border);
+    border-radius: 999px; padding: 13px 17px; color: var(--text); font-size: 15px; outline: none; font-family: inherit;
+  }
+  .input-bar input:focus { border-color: rgba(255,180,84,0.5); }
+  .input-bar .mic {
+    width: 50px; height: 50px; border-radius: 50%;
+    background: var(--card); border: 1px solid var(--card-border);
+    color: var(--text); font-size: 20px; cursor: pointer;
+    display: grid; place-items: center; flex-shrink: 0;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .input-bar .mic.listening {
+    background: linear-gradient(135deg, #ff7b7b, #ff8f6b);
+    color: #fff; border-color: transparent;
+    animation: mic-pulse 1s infinite;
+  }
+  .input-bar .mic.hidden { display: none; }
+  .input-bar .mic[disabled] { opacity: 0.35; cursor: not-allowed; }
+  @keyframes mic-pulse { 50% { box-shadow: 0 0 0 6px rgba(255,123,123,0.25); } }
+  .input-bar .send {
+    width: 50px; height: 50px; border-radius: 50%; border: none;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    font-size: 20px; cursor: pointer; display: grid; place-items: center; flex-shrink: 0; color: #241a0e;
+  }
+  .input-bar .send:active { transform: scale(0.92); }
+  .input-bar .send[disabled] { opacity: 0.4; }
+
+  /* ==================== 专注页 ==================== */
+  #pageFocus.active { padding: 14px 14px calc(12px + env(safe-area-inset-bottom)); gap: 14px; }
+
+  .focus-head { display: flex; align-items: center; gap: 12px; }
+  .focus-avatar {
+    width: 52px; height: 52px; border-radius: 50%;
+    object-fit: cover; object-position: center 35%;
+    border: 2px solid rgba(255,255,255,0.16);
+  }
+  .focus-name { font-size: 15px; font-weight: 700; }
+  .focus-status { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+
+  .focus-bubble {
+    background: var(--card); border: 1px solid var(--card-border);
+    border-radius: 16px 16px 16px 4px;
+    padding: 13px 15px; font-size: 15px; line-height: 1.6;
+    min-height: 48px; word-break: break-word;
+  }
+
+  .timer-card {
+    background: var(--card); border: 1px solid var(--card-border);
+    border-radius: var(--radius); padding: 22px 16px; text-align: center;
+  }
+  .timer-tabs {
+    display: flex; gap: 6px; background: rgba(0,0,0,0.22);
+    border-radius: 12px; padding: 4px; margin-bottom: 16px;
+  }
+  .timer-tabs button {
+    flex: 1; border: none; background: transparent; color: var(--text-dim);
+    padding: 9px 0; border-radius: 9px; font-size: 13px; font-weight: 600;
+    cursor: pointer; font-family: inherit; transition: all 0.2s;
+  }
+  .timer-tabs button.active {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #241a0e;
+  }
+  .timer-display {
+    font-size: 64px; font-weight: 800; letter-spacing: 2px;
+    font-variant-numeric: tabular-nums; line-height: 1; margin: 6px 0 4px;
+  }
+  .timer-display.running { color: var(--accent); text-shadow: 0 0 26px rgba(255,180,84,0.35); }
+  .timer-hint { font-size: 12px; color: var(--text-dim); margin-bottom: 16px; min-height: 16px; }
+  .timer-controls { display: flex; gap: 10px; justify-content: center; }
+  .btn {
+    border: none; border-radius: 13px; padding: 12px 22px;
+    font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit;
+    transition: transform 0.15s, opacity 0.15s;
+  }
+  .btn:active { transform: scale(0.96); }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #241a0e; box-shadow: 0 6px 18px rgba(255, 160, 80, 0.35);
+    flex: 1; max-width: 220px;
+  }
+  .btn-ghost {
+    background: rgba(255,255,255,0.08); color: var(--text);
+    border: 1px solid var(--card-border);
+  }
+
+  .focus-stats { display: flex; gap: 8px; justify-content: center; }
+  .stat-pill {
+    background: var(--card); border: 1px solid var(--card-border);
+    border-radius: 999px; padding: 8px 14px; font-size: 13px;
+    color: var(--text-dim); display: flex; align-items: center; gap: 5px;
+  }
+  .stat-pill b { color: var(--text); font-weight: 700; }
+
+  /* ==================== 我的页 ==================== */
+  #pageProfile.active { padding: 14px 14px calc(12px + env(safe-area-inset-bottom)); gap: 14px; }
+  .profile-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .p-stat {
+    background: var(--card); border: 1px solid var(--card-border);
+    border-radius: 16px; padding: 16px 14px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .p-stat b { font-size: 24px; font-weight: 800; }
+  .p-stat span { font-size: 12px; color: var(--text-dim); }
+  .calendar-card {
+    background: var(--card); border: 1px solid var(--card-border);
+    border-radius: var(--radius); padding: 16px 14px;
+  }
+  .cal-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .cal-title { font-size: 15px; font-weight: 700; }
+  .cal-nav {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: rgba(255,255,255,0.08); border: 1px solid var(--card-border);
+    color: var(--text); font-size: 18px; cursor: pointer;
+    display: grid; place-items: center;
+  }
+  .cal-week {
+    display: grid; grid-template-columns: repeat(7, 1fr);
+    text-align: center; font-size: 12px; color: var(--text-dim);
+    margin-bottom: 6px;
+  }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .cal-day {
+    aspect-ratio: 1; display: grid; place-items: center;
+    font-size: 13px; border-radius: 8px; color: var(--text-dim);
+  }
+  .cal-day.done {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #241a0e; font-weight: 700;
+  }
+  .cal-day.today { border: 1px solid var(--accent); }
+  .cal-day.empty { visibility: hidden; }
+
+  /* ==================== 底部 Tab ==================== */
+  .tabbar {
+    display: flex; gap: 8px;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    background: rgba(34,29,46,0.96);
+    border-top: 1px solid var(--card-border);
+    flex-shrink: 0;
+  }
+  .tab {
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+    background: var(--card); border: 1px solid var(--card-border); color: var(--text-dim);
+    border-radius: 999px; padding: 11px 0; font-size: 14px; font-weight: 600;
+    cursor: pointer; font-family: inherit; transition: all 0.2s;
+  }
+  .tab.active {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #241a0e; border-color: transparent;
+  }
+</style>
+</head>
+<body>
+  <div class="glow glow-1"></div>
+  <div class="glow glow-2"></div>
+
+  <div class="app">
+    <!-- ==================== 陪伴页 ==================== -->
+    <div class="page active" id="pageChat">
+      <div class="voice-bar">
+        <span class="voice-label">语音</span>
+        <div class="toggle" id="voiceToggle" role="switch" aria-checked="true"><span class="toggle-knob"></span></div>
+      </div>
+      <div class="video-stage" id="videoStage">
+        <div class="call-topbar">
+          <div class="call-id"><span class="dot"></span>小悟 · 视频陪伴中</div>
+          <div class="call-tag">各学各的</div>
+        </div>
+        <div class="buddy-stage">
+          <div class="buddy-wrap" id="buddyWrap" title="点我互动">
+            <img class="buddy-avatar" id="buddyImg" alt="搭子形象" draggable="false" />
+          </div>
+          <div class="buddy-meta">
+            <div class="buddy-name">小悟</div>
+            <div class="buddy-status" id="buddyStatus">安静陪着你 · 需要就叫我</div>
+            <div class="buddy-switch" id="buddySwitch">
+              <button data-buddy="male" id="btnMale">👨🏻 男生</button>
+              <button data-buddy="female" id="btnFemale">👩🏻 女生</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="subtitle-wrap">
+        <div class="subtitle" id="subtitle">……</div>
+      </div>
+
+      <div class="quick-replies" id="quickReplies">
+        <button data-q="我有点累了，陪我聊会儿">🥱 我有点累</button>
+        <button data-q="最近学习压力好大">😣 压力大</button>
+        <button data-q="陪我唠唠日常吧">💬 陪我唠唠</button>
+        <button data-q="学不进去，好烦">😮‍💨 学不进去</button>
+      </div>
+
+      <div class="chat" id="chat"></div>
+
+      <div class="input-bar">
+        <button class="mic" id="micBtn" title="按住说话">🎤</button>
+        <input id="msgInput" placeholder="和搭子说句话…" maxlength="200" />
+        <button class="send" id="sendBtn">➤</button>
+      </div>
+    </div>
+
+    <!-- ==================== 专注页 ==================== -->
+    <div class="page" id="pageFocus">
+      <div class="focus-head">
+        <img class="focus-avatar" id="focusAvatar" alt="搭子" draggable="false" />
+        <div>
+          <div class="focus-name">小悟</div>
+          <div class="focus-status" id="focusStatus">陪你一起专注</div>
+        </div>
+      </div>
+
+      <div class="focus-bubble" id="focusBubble">点「开始」，搭子陪你一起专注 🍅</div>
+
+      <div class="timer-card">
+        <div class="timer-tabs">
+          <button id="tabFocus" class="active">专注</button>
+          <button id="tabBreak">休息</button>
+        </div>
+        <div class="timer-display" id="timerDisplay">25:00</div>
+        <div class="timer-hint" id="timerHint">点「开始」，搭子陪你一起专注</div>
+        <div class="timer-controls">
+          <button class="btn btn-primary" id="startBtn">开始专注</button>
+          <button class="btn btn-ghost" id="resetBtn">重置</button>
+        </div>
+      </div>
+
+      <div class="focus-stats">
+        <div class="stat-pill">🔥 <b id="streak">0</b>天</div>
+        <div class="stat-pill">🍅 <b id="tomato">0</b></div>
+        <div class="stat-pill">📅 <b id="weekDays">0</b>天</div>
+      </div>
+    </div>
+
+    <!-- ==================== 我的页 ==================== -->
+    <div class="page" id="pageProfile">
+      <div class="profile-stats">
+        <div class="p-stat"><b id="pTomato">0</b><span>累计番茄</span></div>
+        <div class="p-stat"><b id="pMinutes">0</b><span>累计时长</span></div>
+        <div class="p-stat"><b id="pStreak">0</b><span>连续天数</span></div>
+        <div class="p-stat"><b id="pWeek">0</b><span>本周专注</span></div>
+      </div>
+      <div class="calendar-card">
+        <div class="cal-head">
+          <button class="cal-nav" id="calPrev">‹</button>
+          <span class="cal-title" id="calTitle">——</span>
+          <button class="cal-nav" id="calNext">›</button>
+        </div>
+        <div class="cal-week">
+          <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
+        </div>
+        <div class="cal-grid" id="calGrid"></div>
+      </div>
+    </div>
+
+    <!-- ==================== 底部 Tab ==================== -->
+    <nav class="tabbar">
+      <button class="tab active" id="tabChatBtn">💬 陪伴</button>
+      <button class="tab" id="tabFocusBtn2">🍅 专注</button>
+      <button class="tab" id="tabProfileBtn">👤 我的</button>
+    </nav>
+  </div>
+
+<script>
+(function () {
+  "use strict";
+
+  const $ = (s) => document.querySelector(s);
+
+  // DOM
+  const subtitle = $("#subtitle");
+  const chatEl = $("#chat");
+  const buddyWrap = $("#buddyWrap");
+  const buddyImg = $("#buddyImg");
+  const buddyStatus = $("#buddyStatus");
+  const msgInput = $("#msgInput");
+  const sendBtn = $("#sendBtn");
+  const micBtn = $("#micBtn");
+  const focusAvatar = $("#focusAvatar");
+  const focusStatus = $("#focusStatus");
+  const focusBubble = $("#focusBubble");
+  const timerDisplay = $("#timerDisplay");
+  const timerHint = $("#timerHint");
+  const startBtn = $("#startBtn");
+  const resetBtn = $("#resetBtn");
+  const tabFocus = $("#tabFocus");
+  const tabBreak = $("#tabBreak");
+  const streakEl = $("#streak");
+  const tomatoEl = $("#tomato");
+  const weekDaysEl = $("#weekDays");
+  const pageChat = $("#pageChat");
+  const pageFocus = $("#pageFocus");
+  const pageProfile = $("#pageProfile");
+  const tabChatBtn = $("#tabChatBtn");
+  const tabFocusBtn2 = $("#tabFocusBtn2");
+  const tabProfileBtn = $("#tabProfileBtn");
+  const pTomato = $("#pTomato");
+  const pMinutes = $("#pMinutes");
+  const pStreak = $("#pStreak");
+  const pWeek = $("#pWeek");
+  const calTitle = $("#calTitle");
+  const calGrid = $("#calGrid");
+  const calPrev = $("#calPrev");
+  const calNext = $("#calNext");
+
+  let busy = false;
+
+  // ==================== 形象 ====================
+  const BUDDIES = {
+    male: { src: "/assets/buddy-male.jpg", gender: "male" },
+    female: { src: "/assets/buddy-female.jpg?v=11", gender: "female" },
+  };
+  const BUDDY_KEY = "sb_buddy";
+  let currentId = "male";
+
+  function applyBuddy(id) {
+    currentId = id;
+    buddyImg.src = BUDDIES[id].src;
+    focusAvatar.src = BUDDIES[id].src;
+    $("#btnMale").classList.toggle("active", id === "male");
+    $("#btnFemale").classList.toggle("active", id === "female");
+    try { localStorage.setItem(BUDDY_KEY, id); } catch { /* 忽略 */ }
+  }
+
+  function initBuddy() {
+    let id = "male";
+    try { id = localStorage.getItem(BUDDY_KEY) || "male"; } catch { /* 忽略 */ }
+    if (!BUDDIES[id]) id = "male";
+    applyBuddy(id);
+  }
+
+  // ==================== 语音开关（只关语音，不改布局） ====================
+  const VOICE_KEY = "sb_voice";
+  const voiceToggle = $("#voiceToggle");
+  let voiceOn = true;
+
+  function updateMicVisibility() {
+    micBtn.classList.toggle("hidden", !SR); // 浏览器不支持才隐藏
+    micBtn.disabled = !voiceOn;              // 语音关闭则禁用（保持布局不变）
+  }
+
+  function applyVoice() {
+    voiceToggle.classList.toggle("on", voiceOn);
+    voiceToggle.setAttribute("aria-checked", voiceOn ? "true" : "false");
+    updateMicVisibility();
+    if (!voiceOn) { stopSpeech(); stopListening(); }
+    try { localStorage.setItem(VOICE_KEY, voiceOn ? "1" : "0"); } catch { /* 忽略 */ }
+  }
+
+  function initVoice() {
+    try { voiceOn = localStorage.getItem(VOICE_KEY) !== "0"; } catch { /* 忽略 */ }
+    applyVoice();
+  }
+
+  // ==================== API ====================
+  async function api(path, opts) {
+    const r = await fetch(path, opts);
+    let data = {};
+    try { data = await r.json(); } catch { /* 非 JSON */ }
+    if (!r.ok) {
+      const msg = (data.error && data.error.message) || ("HTTP " + r.status);
+      throw new Error(msg);
+    }
+    return data;
+  }
+
+  const apiChat = (message) => api("/api/v1/chat", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message }),
+  });
+  const apiEncourage = (scene) => api("/api/v1/encourage", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ scene }),
+  });
+  const apiStats = () => api("/api/v1/stats");
+  const apiComplete = (minutes) => api("/api/v1/stats/complete", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ minutes }),
+  });
+
+  // ==================== 说话（字幕 + 语音，可打断） ====================
+  let talkSource = 0;
+  let currentAudio = null;
+  let typingTimer = null;
+  let typingEl = null;
+  let speechGen = 0;
+
+  function setTalking(on) {
+    buddyWrap.classList.toggle("talking", on);
+    buddyStatus.textContent = on ? "正在说话…" : "安静陪着你 · 需要就叫我";
+    focusStatus.textContent = on ? "正在说话…" : "陪你一起专注";
+  }
+
+  function beginTalk() { talkSource += 1; setTalking(true); }
+  function endTalk() {
+    talkSource = Math.max(0, talkSource - 1);
+    if (talkSource === 0) setTalking(false);
+  }
+
+  function stopSpeech() {
+    if (currentAudio) {
+      try { currentAudio.pause(); } catch { /* 忽略 */ }
+      currentAudio = null;
+    }
+    if (typingTimer) {
+      clearInterval(typingTimer);
+      typingTimer = null;
+      if (typingEl) { typingEl.classList.remove("typing"); typingEl = null; }
+    }
+    talkSource = 0;
+    setTalking(false);
+  }
+
+  function addChat(who, text) {
+    const div = document.createElement("div");
+    div.className = "msg " + who;
+    div.textContent = text;
+    chatEl.appendChild(div);
+    chatEl.scrollTop = chatEl.scrollHeight;
+  }
+
+  function typeTo(el, text, done) {
+    beginTalk();
+    el.classList.add("typing");
+    typingEl = el;
+    let i = 0;
+    const step = Math.max(1, Math.round(text.length / 40));
+    el.textContent = "";
+    const iv = setInterval(() => {
+      i += step;
+      el.textContent = text.slice(0, i);
+      if (i >= text.length) {
+        clearInterval(iv);
+        typingTimer = null;
+        el.classList.remove("typing");
+        typingEl = null;
+        endTalk();
+        done && done();
+      }
+    }, 30);
+    typingTimer = iv;
+  }
+
+  async function playVoice(text, gen) {
+    if (!voiceOn) return; // 语音关闭时静音
+    const gender = BUDDIES[currentId].gender;
+    try {
+      const r = await fetch("/api/v1/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, gender }),
+      });
+      if (gen !== speechGen) return;
+      if (!r.ok || r.status === 204) return;
+      const blob = await r.blob();
+      if (!blob.size) return;
+      if (gen !== speechGen) return;
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      currentAudio = audio;
+      beginTalk();
+      audio.onended = () => { URL.revokeObjectURL(url); if (currentAudio === audio) currentAudio = null; endTalk(); };
+      audio.onerror = () => { URL.revokeObjectURL(url); if (currentAudio === audio) currentAudio = null; endTalk(); };
+      try { await audio.play(); } catch { if (currentAudio === audio) currentAudio = null; endTalk(); }
+    } catch { /* 语音失败，静默降级 */ }
+  }
+
+  function speak(text) { // 陪伴页：字幕 + 历史 + 语音
+    stopSpeech();
+    const gen = ++speechGen;
+    typeTo(subtitle, text, () => addChat("buddy", text));
+    playVoice(text, gen);
+  }
+
+  function focusSpeak(text) { // 专注页：气泡 + 语音（不进聊天历史）
+    stopSpeech();
+    const gen = ++speechGen;
+    typeTo(focusBubble, text);
+    playVoice(text, gen);
+  }
+
+  function setBusy(b) {
+    busy = b;
+    sendBtn.disabled = b;
+  }
+
+  // ==================== 主动搭话 ====================
+  const IDLE_MS = 60 * 1000;
+  let idleTimer = null;
+
+  function resetIdle() {
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = setTimeout(idleSpeak, IDLE_MS);
+  }
+
+  async function idleSpeak() {
+    if (busy) { resetIdle(); return; }
+    try {
+      const d = await apiEncourage("idle");
+      if (d.reply) speak(d.reply);
+    } catch { /* 忽略 */ }
+    resetIdle();
+  }
+
+  // ==================== 聊天 ====================
+  async function userSay(text) {
+    if (!text || busy) return;
+    stopSpeech();
+    addChat("user", text);
+    setBusy(true);
+    resetIdle();
+    try {
+      const d = await apiChat(text);
+      speak(d.reply || "……");
+    } catch {
+      speak("哎呀，我这边信号不太好，稍等再试");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function send() {
+    const text = msgInput.value.trim();
+    if (!text || busy) return;
+    msgInput.value = "";
+    userSay(text);
+  }
+
+  // ==================== 统计 ====================
+  let stats = { tomato: 0, streak: 0, weekDays: [] };
+
+  function renderStats() {
+    streakEl.textContent = stats.streak || 0;
+    tomatoEl.textContent = stats.tomato || 0;
+    weekDaysEl.textContent = (stats.weekDays || []).length || 0;
+    pStreak.textContent = stats.streak || 0;
+    pWeek.textContent = (stats.weekDays || []).length || 0;
+  }
+
+  async function loadStats() {
+    try { stats = await apiStats(); } catch { stats = { tomato: 0, streak: 0, weekDays: [] }; }
+    renderStats();
+  }
+
+  async function completeTomato() {
+    try { stats = await apiComplete(25); }
+    catch { stats.tomato = (stats.tomato || 0) + 1; }
+    renderStats();
+  }
+
+  // ==================== 我的页（历史 + 日历） ====================
+  let historyDays = {};
+  let calYear = new Date().getFullYear();
+  let calMonth = new Date().getMonth();
+
+  const pad2 = (n) => String(n).padStart(2, "0");
+
+  function fmtMinutes(m) {
+    m = m || 0;
+    if (m < 60) return m + "分";
+    const h = Math.floor(m / 60);
+    const mm = m % 60;
+    return mm ? h + "小时" + mm + "分" : h + "小时";
+  }
+
+  function renderCalendar() {
+    const first = new Date(calYear, calMonth, 1);
+    const last = new Date(calYear, calMonth + 1, 0);
+    calTitle.textContent = calYear + "年" + (calMonth + 1) + "月";
+    const startDay = first.getDay();
+    const totalDays = last.getDate();
+    const now = new Date();
+    const todayStr = now.getFullYear() + "-" + pad2(now.getMonth() + 1) + "-" + pad2(now.getDate());
+    calGrid.innerHTML = "";
+    for (let i = 0; i < startDay; i++) {
+      const c = document.createElement("div");
+      c.className = "cal-day empty";
+      calGrid.appendChild(c);
+    }
+    for (let d = 1; d <= totalDays; d++) {
+      const ds = calYear + "-" + pad2(calMonth + 1) + "-" + pad2(d);
+      const cell = document.createElement("div");
+      cell.className = "cal-day";
+      cell.textContent = d;
+      if (historyDays[ds] && historyDays[ds].tomato > 0) cell.classList.add("done");
+      if (ds === todayStr) cell.classList.add("today");
+      calGrid.appendChild(cell);
+    }
+  }
+
+  async function loadHistory() {
+    try {
+      const d = await api("/api/v1/history");
+      historyDays = d.days || {};
+      pTomato.textContent = d.totalTomato || 0;
+      pMinutes.textContent = fmtMinutes(d.totalMinutes);
+    } catch {
+      historyDays = {};
+    }
+    renderCalendar();
+  }
+
+  // ==================== 番茄钟 ====================
+  const DEFAULTS = { focus: 25 * 60, break: 5 * 60 };
+  const TIMER_KEY = "sb_timer";
+
+  let tMode = "focus";
+  let tRemaining = DEFAULTS.focus;
+  let tRunning = false;
+  let tEndAt = 0;
+  let tTimerId = null;
+  let tHalfDone = false;
+
+  const fmt = (s) => {
+    s = Math.max(0, Math.floor(s));
+    return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
+  };
+
+  function persistTimer() {
+    try {
+      localStorage.setItem(TIMER_KEY, JSON.stringify({
+        mode: tMode, remaining: Math.max(0, Math.round(tRemaining)), endAt: tEndAt, running: tRunning,
+      }));
+    } catch { /* 忽略 */ }
+  }
+
+  function renderTimer() {
+    timerDisplay.textContent = fmt(tRemaining);
+    timerDisplay.classList.toggle("running", tRunning);
+    const isBreak = tMode === "break";
+    tabFocus.classList.toggle("active", !isBreak);
+    tabBreak.classList.toggle("active", isBreak);
+    startBtn.textContent = tRunning
+      ? "暂停"
+      : (isBreak ? "开始休息" : (tRemaining < DEFAULTS.focus ? "继续专注" : "开始专注"));
+    if (!tRunning) {
+      timerHint.textContent = isBreak ? "休息是为了更好地出发 🌿" : "点「开始」，搭子陪你一起专注";
+    }
+  }
+
+  async function sceneFocusSpeak(scene) {
+    try {
+      const d = await apiEncourage(scene);
+      if (d.reply) focusSpeak(d.reply);
+    } catch { /* 忽略 */ }
+  }
+
+  function startInterval() {
+    if (tTimerId) clearInterval(tTimerId);
+    tTimerId = setInterval(tick, 1000);
+  }
+
+  function setMode(m) {
+    if (tTimerId) clearInterval(tTimerId);
+    tTimerId = null;
+    tRunning = false;
+    tEndAt = 0;
+    tMode = m;
+    tRemaining = m === "focus" ? DEFAULTS.focus : DEFAULTS.break;
+    tHalfDone = false;
+    persistTimer();
+    renderTimer();
+  }
+
+  function startTimer() {
+    if (tRunning) { pauseTimer(); return; }
+    tRunning = true;
+    tEndAt = Date.now() + tRemaining * 1000;
+    tHalfDone = tRemaining < DEFAULTS.focus / 2;
+    const isBreak = tMode === "break";
+    if (!isBreak && tRemaining >= DEFAULTS.focus) sceneFocusSpeak("start");
+    else if (isBreak && tRemaining >= DEFAULTS.break) sceneFocusSpeak("break");
+    startInterval();
+    persistTimer();
+    renderTimer();
+  }
+
+  function pauseTimer() {
+    if (!tRunning) return;
+    tRunning = false;
+    if (tTimerId) clearInterval(tTimerId);
+    tTimerId = null;
+    if (tEndAt) tRemaining = Math.max(0, Math.round((tEndAt - Date.now()) / 1000));
+    tEndAt = 0;
+    persistTimer();
+    renderTimer();
+  }
+
+  function resetTimer() {
+    setMode(tMode);
+  }
+
+  function tick() {
+    if (!tEndAt) return;
+    tRemaining = Math.round((tEndAt - Date.now()) / 1000);
+    if (tRemaining <= 0) {
+      tRemaining = 0;
+      finish();
+      return;
+    }
+    if (tMode === "focus" && !tHalfDone && tRemaining <= DEFAULTS.focus / 2) {
+      tHalfDone = true;
+      sceneFocusSpeak("encourage");
+    }
+    renderTimer();
+  }
+
+  async function finish() {
+    if (tTimerId) clearInterval(tTimerId);
+    tTimerId = null;
+    tRunning = false;
+    tEndAt = 0;
+    tRemaining = 0;
+    if (tMode === "focus") {
+      await completeTomato();
+      sceneFocusSpeak("celebrate");
+      setMode("break");
+    } else {
+      sceneFocusSpeak("breakOver");
+      setMode("focus");
+    }
+  }
+
+  function restoreTimer() {
+    try {
+      const s = JSON.parse(localStorage.getItem(TIMER_KEY) || "null");
+      if (!s) return false;
+      tMode = s.mode === "break" ? "break" : "focus";
+      const max = tMode === "focus" ? DEFAULTS.focus : DEFAULTS.break;
+      if (s.running && s.endAt) {
+        const left = Math.round((s.endAt - Date.now()) / 1000);
+        if (left > 0) {
+          tRemaining = left;
+          tRunning = true;
+          tEndAt = s.endAt;
+          tHalfDone = tRemaining < DEFAULTS.focus / 2;
+          startInterval();
+          return true;
+        }
+        tRemaining = 0;
+        finish();
+        return true;
+      }
+      tRemaining = Math.min(s.remaining || DEFAULTS.focus, max);
+      tHalfDone = tRemaining < DEFAULTS.focus / 2;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // ==================== 语音输入（按住说话） ====================
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recognition = null;
+  let finalTranscript = "";
+  let listening = false;
+
+  function setListeningUI(on) {
+    micBtn.classList.toggle("listening", on);
+    msgInput.placeholder = on ? "正在听…松开结束" : "和搭子说句话…";
+  }
+
+  function tryStart() {
+    if (!recognition || !listening) return;
+    try { recognition.start(); } catch { /* 已在运行 */ }
+  }
+
+  if (SR) {
+    recognition = new SR();
+    recognition.lang = "zh-CN";
+    recognition.interimResults = true;
+    recognition.continuous = true;
+    recognition.onresult = (e) => {
+      let interim = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) finalTranscript += t;
+        else interim += t;
+      }
+      msgInput.value = finalTranscript + interim;
+    };
+    recognition.onend = () => {
+      if (listening) {
+        tryStart();
+      } else {
+        setListeningUI(false);
+        const text = finalTranscript.trim();
+        finalTranscript = "";
+        if (text) { msgInput.value = ""; userSay(text); }
+      }
+    };
+    recognition.onerror = (e) => {
+      if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+        listening = false;
+        setListeningUI(false);
+        speak("麦克风权限没开，用打字也行～");
+      } else if (listening) {
+        setTimeout(tryStart, 300);
+      }
+    };
+  }
+  updateMicVisibility();
+
+  function startListening() {
+    if (!recognition || listening || !voiceOn) return;
+    listening = true;
+    setListeningUI(true);
+    finalTranscript = "";
+    tryStart();
+  }
+  function stopListening() {
+    if (!recognition) return;
+    listening = false;
+    setListeningUI(false);
+    try { recognition.stop(); } catch { /* 未启动 */ }
+  }
+
+  // ==================== Tab 切换 ====================
+  function switchTab(tab) {
+    pageChat.classList.toggle("active", tab === "chat");
+    pageFocus.classList.toggle("active", tab === "focus");
+    pageProfile.classList.toggle("active", tab === "profile");
+    tabChatBtn.classList.toggle("active", tab === "chat");
+    tabFocusBtn2.classList.toggle("active", tab === "focus");
+    tabProfileBtn.classList.toggle("active", tab === "profile");
+    if (tab === "profile") loadHistory();
+  }
+
+  // ==================== 事件 ====================
+  sendBtn.addEventListener("click", send);
+  msgInput.addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
+  buddyWrap.addEventListener("click", () => userSay("陪我聊聊天吧"));
+
+  $("#quickReplies").addEventListener("click", (e) => {
+    const btn = e.target.closest("button");
+    if (!btn) return;
+    userSay(btn.dataset.q);
+  });
+
+  $("#buddySwitch").addEventListener("click", (e) => {
+    const btn = e.target.closest("button");
+    if (!btn) return;
+    applyBuddy(btn.dataset.buddy);
+  });
+
+  tabChatBtn.addEventListener("click", () => switchTab("chat"));
+  tabFocusBtn2.addEventListener("click", () => switchTab("focus"));
+  tabProfileBtn.addEventListener("click", () => switchTab("profile"));
+  voiceToggle.addEventListener("click", () => { voiceOn = !voiceOn; applyVoice(); });
+  calPrev.addEventListener("click", () => { calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; } renderCalendar(); });
+  calNext.addEventListener("click", () => { calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; } renderCalendar(); });
+
+  tabFocus.addEventListener("click", () => setMode("focus"));
+  tabBreak.addEventListener("click", () => setMode("break"));
+  startBtn.addEventListener("click", startTimer);
+  resetBtn.addEventListener("click", resetTimer);
+
+  micBtn.addEventListener("pointerdown", (e) => { e.preventDefault(); startListening(); });
+  micBtn.addEventListener("pointerup", (e) => { e.preventDefault(); stopListening(); });
+  micBtn.addEventListener("pointercancel", () => stopListening());
+  micBtn.addEventListener("contextmenu", (e) => e.preventDefault());
+
+  // ==================== 初始化 ====================
+  initBuddy();
+  initVoice();
+  loadStats();
+  loadHistory();
+  renderTimer();
+  restoreTimer();
+  renderTimer();
+  switchTab("chat");
+  resetIdle();
+  (async function init() {
+    try {
+      const d = await apiEncourage("greet");
+      speak(d.reply || "来啦？今天状态怎么样？");
+    } catch {
+      speak("来啦？今天状态怎么样？");
+    }
+  })();
+})();
+</script>
+</body>
+</html>
