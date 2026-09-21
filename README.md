@@ -6,17 +6,9 @@ StudyNest 是一款移动端优先的学习陪伴产品。当前正式产品由�
 
 ## 功能演示
 
-<p align="center">
-  <a href="./StudyNest-iPhone12Pro-全功能演示.mp4">
-    <img src="./StudyNest-iPhone12Pro-演示封面.png" width="320" alt="StudyNest iPhone 12 Pro 功能演示封面">
-  </a>
-</p>
+https://github.com/user-attachments/assets/a71ef41c-442b-4f7b-a75a-502f331d3503
 
-<p align="center">
-  <a href="./StudyNest-iPhone12Pro-全功能演示.mp4">▶ 点击观看完整演示（1 分 33 秒 · iPhone 12 Pro）</a>
-</p>
-
-演示包含邀请码登录、男女声 AI 学习陪伴、语音与文字对话、今日目标、会话管理、番茄专注、学习统计、搭子记忆、陪伴偏好、每周总结、自习室和数据管理。
+演示时长 1 分 33 秒，采用 iPhone 12 Pro 画面比例。内容包含邀请码登录、男女声 AI 学习陪伴、语音与文字对话、今日目标、会话管理、番茄专注、学习统计、搭子记忆、陪伴偏好、每周总结、自习室和数据管理。
 > 当前开发阶段：P1-C「记忆、安全与可观测性」工程开发和隔离自动验收已完成。项目已具备最小 Agent Harness 的工程组成，但人工安全复核、真实模型冒烟和 PostgreSQL 实库验收仍是发布阻塞项。
 
 ## 哪些目录是正式版本
