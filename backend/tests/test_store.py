@@ -23,3 +23,15 @@ def test_atomic_write_leaves_no_tmp(tmp_path):
     store.write("x", {"a": 1})
     leftovers = [p for p in tmp_path.iterdir() if p.suffix == ".tmp"]
     assert leftovers == []
+
+
+def test_update_reads_changes_and_writes_under_one_operation(tmp_path):
+    store = JsonStore(tmp_path)
+
+    def increment(data):
+        data["count"] = int(data.get("count", 0)) + 1
+        return data
+
+    assert store.update("counter", {"count": 0}, increment) == {"count": 1}
+    assert store.update("counter", {"count": 0}, increment) == {"count": 2}
+    assert store.read("counter", {}) == {"count": 2}

@@ -1,8 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useVoice } from "@/components/providers/VoiceProvider";
+import MemoryManager from "@/components/MemoryManager";
+import CompanionPreferences from "@/components/CompanionPreferences";
+import LearningSummaryCard from "@/components/LearningSummaryCard";
+import DataRightsManager from "@/components/DataRightsManager";
+import AchievementCard from "@/components/AchievementCard";
+import StudyRoomCard from "@/components/StudyRoomCard";
 import { api } from "@/lib/api/client";
 import type { History, Stats } from "@/lib/api/types";
+import { logoutLocal } from "@/lib/auth";
 
 const EMPTY_STATS: Stats = { date: "", tomato: 0, minutes: 0, streak: 0, weekDays: [] };
 const EMPTY_HISTORY: History = { days: {}, totalTomato: 0, totalMinutes: 0 };
@@ -18,6 +27,8 @@ function fmtMinutes(m: number) {
 }
 
 export default function ProfilePage() {
+  const router = useRouter();
+  const { stop: stopVoice } = useVoice();
   const [stats, setStats] = useState<Stats>(EMPTY_STATS);
   const [history, setHistory] = useState<History>(EMPTY_HISTORY);
   const now = new Date();
@@ -86,6 +97,17 @@ export default function ProfilePage() {
     });
   }
 
+  async function logout() {
+    stopVoice();
+    try {
+      await api.logout();
+    } catch {
+      // 即使网络不可用，也必须完成本地退出。
+    }
+    logoutLocal();
+    router.replace("/login");
+  }
+
   return (
     <div className="flex h-full flex-col gap-3.5 p-3.5 pb-2">
       {/* 统计总览 */}
@@ -139,6 +161,21 @@ export default function ProfilePage() {
         </div>
         <div className="grid grid-cols-7 gap-1">{renderDays()}</div>
       </div>
+
+      <MemoryManager />
+      <CompanionPreferences />
+      <LearningSummaryCard />
+      <AchievementCard />
+      <StudyRoomCard />
+      <DataRightsManager />
+
+      <button
+        type="button"
+        onClick={logout}
+        className="rounded-full border border-line bg-surface px-5 py-3 text-sm text-muted"
+      >
+        退出登录
+      </button>
     </div>
   );
 }

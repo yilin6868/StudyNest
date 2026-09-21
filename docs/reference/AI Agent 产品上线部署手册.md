@@ -292,7 +292,7 @@ vefaas gateway list --first
 
 ## 九、配置线上环境变量（发布前必做）
 
-> ⚠️ **这一步必须在"首次发布"之前做。** 实战经验：不先配 `ENV=prod` 和数据库路径，应用一启动就会崩溃（数据库默认写到只读目录）。
+> ⚠️ **这一步必须在发布之前做。** AI 学习搭子必须使用 `APP_ENV=production` 和外部 PostgreSQL；不得使用函数实例 `/tmp` 中的 SQLite 承载生产数据。
 
 **AI 做**：应用启动依赖的配置（模型 Key、语音凭证、数据库路径等）必须通过**环境变量**（就是程序的"配置开关"：密钥、数据库放哪、要不要强制登录，都不写死在代码里，而是上线时"拨开关"）配到线上，不能用本地 `.env` 文件（`.env` 不打包、不进线上）。
 
@@ -306,14 +306,14 @@ vefaas env import --file <文件> --replace
 
 | 环境变量 | 配什么 | 为什么 |
 | --- | --- | --- |
-| `ENV=prod` | `prod` | 打开"强制登录"；也是切到线上数据库路径的开关 |
-| `DATABASE_URL` | `sqlite:////tmp/data/app.db`（绝对路径要 4 个斜杠） | veFaaS 实例**除 `/tmp` 外只读**，数据库必须放 `/tmp`，否则报 `Read-only file system` |
+| `APP_ENV` | `production` | 启用生产配置强校验 |
+| `DATABASE_URL` | `postgresql+psycopg://...` | 使用可备份、可恢复的外部 PostgreSQL |
 
 **其余常见环境变量**：
 
 - **密钥类**：模型 Key、语音凭证等，原样配到环境变量，不要写进代码。
 - **文件存储路径**：同理，本地文件目录要指向 `/tmp`（在接对象存储之前）。
-- **登录邀请码**：`INVITE_CODES=CODE1,CODE2`（邀请码由 AI 生成后交给产品经理分发，见第十一节）。
+- **登录邀请码**：使用 `python -m app.cli.manage_invites create` 写入数据库；`INVITE_CODES` 已停用。
 
 配完后让 AI 用 `vefaas env list` 确认键名都在，再进入下一步发布。
 
@@ -365,7 +365,7 @@ vefaas fn scale --id <函数ID> --min 1
 **部署前改造（AI 在 `frontend/` 目录完成）**：
 
 1. `next.config.ts` 设 `output: "standalone"`，并把"指向哪个后端"做成环境变量（如 `BACKEND_URL`）。
-2. 构建命令在 build 后拷贝静态资源：`npm run build && cp -r .next/static .next/standalone/.next/static`。
+2. 构建命令使用 `npm run build:standalone`，该命令同时拷贝 `.next/static` 和 `public`。
 3. 启动命令用 `node server.js`，端口 3000。
 
 **关键坑：构建时环境变量**——`rewrites` 的目标地址在 build 时固化，所以 `BACKEND_URL` 必须在**执行部署命令时**一并注入（如 `BACKEND_URL=https://后端地址 vefaas deploy ...`），而不是部署后再 `vefaas env set`（那只对运行时生效，改不了已固化的 rewrites）。
@@ -377,7 +377,7 @@ cd frontend
 BACKEND_URL="https://后端访问地址" vefaas deploy \
   --newApp <前端应用名> \
   --gatewayName <网关名> \
-  --buildCommand "npm run build && cp -r .next/static .next/standalone/.next/static" \
+  --buildCommand "npm run build:standalone" \
   --outputPath ".next/standalone" \
   --command "node server.js" \
   --port 3000 \
@@ -400,23 +400,25 @@ BACKEND_URL="https://后端访问地址" vefaas deploy \
 
 - 后端提供登录接口，邀请码换取短期 token，后续请求带 token。
 - 所有数据接口按当前登录用户过滤；访问他人数据返回 403。
-- 邀请码**由 AI 生成、交给产品经理分发**；通过环境变量预置（如 `INVITE_CODES=CODE1,CODE2`）。上线完成后 AI 要把邀请码明文交给产品经理，产品经理再分发给使用的人。
+- 邀请码由管理命令写入数据库，明文只在创建时显示一次；不再通过 `INVITE_CODES` 环境变量预置。
 
 **AI 做**：部署后验证三条链路——无 token 访问被拒、错误邀请码被拒、正确邀请码能登录并访问。
 
 ## 十二、数据持久化（关键）
 
-veFaaS 函数实例的 `/tmp` 是**临时存储**：实例缩容或重建后数据丢失。默认轻量方案是"预留实例 + 定期云备份"：
+veFaaS 函数实例的 `/tmp` 是**临时存储**：实例缩容、重建或发布新版本都可能丢失其中数据。AI 学习搭子生产环境只使用外部 PostgreSQL：
 
-1. **预留实例常驻**：部署时 `--minInstance 1`，保证有一个实例持续运行，`/tmp` 不因空闲被回收。
-2. **定期备份到对象存储**：后台任务每隔几分钟把数据库文件上传到对象存储（如 `db_backup/app.db`）。
-3. **启动自动恢复**：服务启动时，如果本地数据库不存在而云端有备份，自动下载恢复。
+1. **迁移前备份**：先创建可恢复的生产 PostgreSQL 备份。
+2. **单任务执行迁移**：执行 `python -m alembic upgrade head`，不将迁移放入多实例并发启动命令。
+3. **迁移后检查**：执行 `python -m app.cli.release_check`，确认生产配置、PostgreSQL 连接和 Alembic 版本正确。
 
 **效果**：数据基本不丢；极端情况（实例故障重建）也能从最近备份恢复。**这个方案不需要企业认证、费用低，适合早期使用。**
 
 业务做大后，升级正规云数据库（RDS PostgreSQL）——届时需企业实名认证，并把 `DATABASE_URL` 换成云数据库连接串，代码无需改动（数据库访问已通过配置抽象）。
 
 ## 十三、文件上对象存储
+
+> AI 学习搭子项目以本节前的外部 PostgreSQL 规则为准；上方早期 SQLite 备份描述仅作历史方案背景，不得用于该项目生产发布。
 
 音频、图片等大文件，上线后必须从本地目录迁移到对象存储，否则换设备/实例重建后文件丢失：
 

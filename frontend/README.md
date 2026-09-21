@@ -1,36 +1,46 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AI 学习搭子正式前端
 
-## Getting Started
+这里是项目唯一的正式用户前端，技术栈为 Next.js 16、React 19 和 TypeScript。
 
-First, run the development server:
+## 启动
+
+先按项目根目录 README 启动 FastAPI 后端，再执行：
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm ci
+BACKEND_URL=http://localhost:8000 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+浏览器打开 `http://localhost:3000`。`BACKEND_URL` 只供 Next.js 服务端配置 API 转发使用，浏览器仍然请求同源的 `/api/v1/*`。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 常用命令
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run dev             # 本地开发
+npm run lint            # 代码检查
+npm run build           # 使用 webpack 生成生产构建
+npm run build:turbopack # 仅用于排查 Turbopack 构建状态
+npm run test:e2e        # 使用隔离测试环境运行浏览器测试
+```
 
-## Learn More
+端到端测试必须通过 `npm run test:e2e` 或项目根目录的 `scripts/run-e2e.sh` 启动。不要直接给测试填入真实邀请码，也不要连接生产后端。
 
-To learn more about Next.js, take a look at the following resources:
+## 页面
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| 路径 | 用途 |
+|---|---|
+| `/login` | 账号登录，或使用邀请码注册新账号 |
+| `/` | 学习搭子聊天和形象设置 |
+| `/focus` | 番茄专注 |
+| `/profile` | 学习统计和历史 |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 目录
 
-## Deploy on Vercel
+- `src/app/`：页面和全局样式。
+- `src/components/`：公共组件。
+- `src/lib/api/`：后端请求封装和类型。
+- `src/lib/auth.ts`：当前登录凭证的本地管理。
+- `public/assets/`：正式前端使用的搭子图片。
+- `e2e/`：Playwright 浏览器测试。
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+早期单文件网页和后端内嵌 H5 已放入项目根目录的 `archive/`，禁止从归档目录部署。

@@ -1,7 +1,20 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import AgentActionCard from "@/components/AgentActionCard";
+import ConversationSwitcher from "@/components/ConversationSwitcher";
+import SafetyMessage from "@/components/SafetyMessage";
+import TodayGoalCard from "@/components/TodayGoalCard";
+import { useVoice } from "@/components/providers/VoiceProvider";
 import { api } from "@/lib/api/client";
+import type { AgentAction, ConversationSummary } from "@/lib/api/types";
+import { getFocusSnapshot } from "@/lib/agent-actions";
+import {
+  clearStoredChatSession,
+  getStoredChatSession,
+  storeChatSession,
+} from "@/lib/chat-session";
+import { setStoredString, useStoredString } from "@/lib/browser-storage";
 
 type Buddy = "male" | "female";
 
@@ -20,17 +33,13 @@ const QUICK_REPLIES = [
 interface Msg {
   role: "user" | "buddy";
   text: string;
+  actions?: AgentAction[];
+  safety?: boolean;
 }
 
 export default function ChatPage() {
-  const [buddy, setBuddy] = useState<Buddy>(() => {
-    if (typeof window === "undefined") return "male";
-    return localStorage.getItem("sb_buddy") === "female" ? "female" : "male";
-  });
-  const [voiceOn, setVoiceOn] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem("sb_voice") === "1"; // 默认关闭，仅显式开启才为 true
-  });
+  const storedBuddy = useStoredString("sb_buddy", "male");
+  const buddy: Buddy = storedBuddy === "female" ? "female" : "male";
   const [messages, setMessages] = useState<Msg[]>([]);
   const [subtitle, setSubtitle] = useState("……");
   const [typing, setTyping] = useState(false);
@@ -38,10 +47,19 @@ export default function ChatPage() {
   const [busy, setBusy] = useState(false);
   const [input, setInput] = useState("");
   const [listening, setListening] = useState(false);
+  const [micSupported, setMicSupported] = useState(false);
+  const [micMessage, setMicMessage] = useState("");
+  const [goalRefreshKey, setGoalRefreshKey] = useState(0);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<ConversationSummary[]>([]);
+  const {
+    voiceEnabled,
+    setVoiceEnabled,
+    speak: playVoice,
+    stop: stopVoice,
+  } = useVoice();
 
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const typeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const speechGenRef = useRef(0);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const listeningRef = useRef(false);
   const finalTranscriptRef = useRef("");
@@ -49,10 +67,7 @@ export default function ChatPage() {
 
   // ==================== 说话 ====================
   function stopSpeech() {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
-    }
+    stopVoice();
     if (typeTimerRef.current) {
       clearInterval(typeTimerRef.current);
       typeTimerRef.current = null;
@@ -61,9 +76,8 @@ export default function ChatPage() {
     setTalking(false);
   }
 
-  function speak(text: string) {
+  function speak(text: string, actions: AgentAction[] = [], safety = false) {
     stopSpeech();
-    const gen = ++speechGenRef.current;
 
     // 字幕打字机
     setTyping(true);
@@ -79,30 +93,11 @@ export default function ChatPage() {
         typeTimerRef.current = null;
         setTyping(false);
         setTalking(false);
-        setMessages((m) => [...m, { role: "buddy", text }]);
+        setMessages((m) => [...m, { role: "buddy", text, actions, safety }]);
       }
     }, 30);
 
-    // 语音播放
-    if (voiceOn) {
-      api.tts(text, BUDDIES[buddy].gender).then((url) => {
-        if (url && gen === speechGenRef.current) {
-          const audio = new Audio(url);
-          audioRef.current = audio;
-          setTalking(true);
-          audio.onended = () => {
-            URL.revokeObjectURL(url);
-            if (audioRef.current === audio) audioRef.current = null;
-            setTalking(false);
-          };
-          audio.play().catch(() => {
-            URL.revokeObjectURL(url);
-            if (audioRef.current === audio) audioRef.current = null;
-            setTalking(false);
-          });
-        }
-      });
-    }
+    void playVoice(text, BUDDIES[buddy].gender);
   }
 
   async function userSay(text: string) {
@@ -111,8 +106,12 @@ export default function ChatPage() {
     setMessages((m) => [...m, { role: "user", text }]);
     setBusy(true);
     try {
-      const d = await api.chat(text);
-      speak(d.reply);
+      const d = await api.chat(text, getFocusSnapshot(), sessionId);
+      setSessionId(d.sessionId);
+      storeChatSession(d.sessionId);
+      speak(d.reply, d.actions, d.responseMode === "safety");
+      void refreshSessions();
+      setGoalRefreshKey((value) => value + 1);
     } catch {
       speak("哎呀，我这边信号不太好，稍等再试");
     } finally {
@@ -123,25 +122,116 @@ export default function ChatPage() {
   // ==================== 初始化 ====================
   const speakRef = useRef<((text: string) => void) | null>(null);
 
+  async function refreshSessions() {
+    const result = await api.listChatSessions();
+    setSessions(result.sessions);
+  }
+
+  async function restoreSession(nextSessionId: string) {
+    stopSpeech();
+    setBusy(true);
+    try {
+      const result = await api.getChatMessages(nextSessionId);
+      let safetyNext = false;
+      const restored: Msg[] = [];
+      for (const item of result.messages) {
+        if (item.role === "safety_marker") {
+          if (item.content.includes("原文未保存")) {
+            restored.push({ role: "user", text: "[安全消息原文未保存]" });
+          }
+          safetyNext = true;
+        } else if (item.role === "user") {
+          restored.push({ role: "user", text: item.content });
+          safetyNext = false;
+        } else {
+          restored.push({ role: "buddy", text: item.content, safety: safetyNext });
+          safetyNext = false;
+        }
+      }
+      setMessages(restored);
+      setSubtitle(restored.at(-1)?.text ?? "新对话已准备好。");
+      setSessionId(nextSessionId);
+      storeChatSession(nextSessionId);
+    } catch {
+      clearStoredChatSession();
+      setSessionId(null);
+      setMessages([]);
+      setSubtitle("这个对话无法恢复，可以开始新对话。");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function newConversation() {
+    if (busy) return;
+    setBusy(true);
+    stopSpeech();
+    try {
+      const result = await api.createChatSession();
+      setSessionId(result.sessionId);
+      storeChatSession(result.sessionId);
+      setMessages([]);
+      setSubtitle("新对话已准备好。");
+      await refreshSessions();
+    } catch {
+      setSubtitle("新对话创建失败，请稍后重试。");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteConversation(targetId: string) {
+    if (busy || !window.confirm("确定删除这个对话吗？删除后不能恢复。")) return;
+    setBusy(true);
+    try {
+      await api.deleteChatSession(targetId);
+      if (targetId === sessionId) {
+        clearStoredChatSession();
+        setSessionId(null);
+        setMessages([]);
+        setSubtitle("对话已删除，可以开始新对话。");
+      }
+      await refreshSessions();
+    } catch {
+      setSubtitle("删除失败，请稍后重试。");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   // 每次渲染后把最新 speak 写入 ref（供异步回调和空依赖 effect 使用）
   useEffect(() => {
     speakRef.current = speak;
   });
 
   useEffect(() => {
-    api
-      .encourage("greet")
-      .then((d) => speakRef.current?.(d.reply))
-      .catch(() => speakRef.current?.("来啦？今天状态怎么样？"));
+    const stored = getStoredChatSession();
+    void refreshSessions().catch(() => setSessions([]));
+    if (stored) {
+      window.setTimeout(() => void restoreSession(stored), 0);
+    } else {
+      api
+        .encourage("greet")
+        .then((d) => speakRef.current?.(d.reply))
+        .catch(() => speakRef.current?.("来啦？今天状态怎么样？"));
+    }
+    // 初始化只执行一次，会话切换由明确操作驱动。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 卸载清理
   useEffect(() => {
     return () => {
-      if (audioRef.current) audioRef.current.pause();
+      listeningRef.current = false;
+      try {
+        recognitionRef.current?.stop();
+      } catch {
+        // 语音识别可能尚未启动。
+      }
       if (typeTimerRef.current) clearInterval(typeTimerRef.current);
+      stopVoice();
     };
-  }, []);
+  }, [stopVoice]);
 
   function send() {
     const text = input.trim();
@@ -157,17 +247,13 @@ export default function ChatPage() {
 
   // ==================== 形象 / 语音开关 ====================
   function switchBuddy(b: Buddy) {
-    setBuddy(b);
-    localStorage.setItem("sb_buddy", b);
+    setStoredString("sb_buddy", b);
   }
 
   function toggleVoice() {
-    setVoiceOn((v) => {
-      const next = !v;
-      localStorage.setItem("sb_voice", next ? "1" : "0");
-      if (!next) stopSpeech();
-      return next;
-    });
+    const next = !voiceEnabled;
+    setVoiceEnabled(next);
+    if (!next) stopSpeech();
   }
 
   // ==================== 语音输入 ====================
@@ -176,7 +262,18 @@ export default function ChatPage() {
       window.SpeechRecognition ||
       (window as unknown as { webkitSpeechRecognition?: SpeechRecognitionConstructor })
         .webkitSpeechRecognition;
-    if (!SR) return;
+    if (!SR) {
+      const task = window.setTimeout(() => {
+        setMicSupported(false);
+        setMicMessage("当前浏览器不支持语音输入，请使用文字输入。");
+      }, 0);
+      return () => window.clearTimeout(task);
+    }
+
+    const task = window.setTimeout(() => {
+      setMicSupported(true);
+      setMicMessage("");
+    }, 0);
 
     const rec = new SR();
     rec.lang = "zh-CN";
@@ -215,7 +312,7 @@ export default function ChatPage() {
       if (e.error === "not-allowed" || e.error === "service-not-allowed") {
         listeningRef.current = false;
         setListening(false);
-        speakRef.current?.("麦克风权限没开，用打字也行～");
+        setMicMessage("麦克风权限未开启，可以继续打字。");
       } else if (listeningRef.current) {
         setTimeout(() => {
           if (listeningRef.current) {
@@ -230,12 +327,13 @@ export default function ChatPage() {
     };
 
     recognitionRef.current = rec;
+    return () => window.clearTimeout(task);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function startListening() {
     const rec = recognitionRef.current;
-    if (!rec || listeningRef.current || !voiceOn) return;
+    if (!rec || listeningRef.current || !voiceEnabled) return;
     listeningRef.current = true;
     setListening(true);
     finalTranscriptRef.current = "";
@@ -258,12 +356,6 @@ export default function ChatPage() {
     }
   }
 
-  const micSupported =
-    typeof window !== "undefined" &&
-    (window.SpeechRecognition ||
-      (window as unknown as { webkitSpeechRecognition?: unknown })
-        .webkitSpeechRecognition);
-
   return (
     <div className="flex h-full flex-col gap-3 p-3 pb-2">
       {/* 语音开关 */}
@@ -272,21 +364,32 @@ export default function ChatPage() {
         <button
           type="button"
           role="switch"
-          aria-checked={voiceOn}
+          aria-checked={voiceEnabled}
           onClick={toggleVoice}
           className={`relative h-[26px] w-[46px] rounded-full transition-colors ${
-            voiceOn
+            voiceEnabled
               ? "bg-linear-to-br from-accent to-accent-2"
               : "bg-white/12"
           }`}
         >
           <span
             className={`absolute top-[3px] h-5 w-5 rounded-full bg-white shadow transition-all ${
-              voiceOn ? "left-[23px]" : "left-[3px]"
+              voiceEnabled ? "left-[23px]" : "left-[3px]"
             }`}
           />
         </button>
       </div>
+
+      <TodayGoalCard refreshKey={goalRefreshKey} />
+
+      <ConversationSwitcher
+        sessions={sessions}
+        currentId={sessionId}
+        busy={busy}
+        onNew={() => void newConversation()}
+        onSelect={(id) => void restoreSession(id)}
+        onDelete={(id) => void deleteConversation(id)}
+      />
 
       {/* 视频窗口 */}
       <div className="relative flex min-h-[300px] flex-col overflow-hidden rounded-[20px] border border-line shadow-[0_18px_40px_rgba(0,0,0,0.35)]">
@@ -373,7 +476,11 @@ export default function ChatPage() {
                 : "self-end rounded-br-[4px] bg-linear-to-br from-accent to-accent-2 font-medium text-[#241a0e]"
             }`}
           >
-            {m.text}
+            {m.safety ? <SafetyMessage text={m.text} /> : m.text}
+            {m.role === "buddy" && !m.safety &&
+              m.actions?.map((action) => (
+                <AgentActionCard key={action.confirmationToken} action={action} />
+              ))}
           </div>
         ))}
       </div>
@@ -392,7 +499,7 @@ export default function ChatPage() {
               stopListening();
             }}
             onPointerCancel={stopListening}
-            disabled={!voiceOn}
+            disabled={!voiceEnabled}
             className={`grid h-[50px] w-[50px] shrink-0 touch-none select-none place-items-center rounded-full border border-line text-xl ${
               listening
                 ? "bg-linear-to-br from-danger to-accent-2 text-white"
@@ -424,6 +531,7 @@ export default function ChatPage() {
           ➤
         </button>
       </div>
+      {micMessage && <p className="px-1 text-xs text-muted">{micMessage}</p>}
     </div>
   );
 }

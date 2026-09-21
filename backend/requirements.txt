@@ -6,3 +6,7 @@ python-dotenv==1.0.1
 edge-tts==7.2.8
 pytest==8.3.4
 pytest-asyncio==0.25.0
+SQLAlchemy==2.0.52
+alembic==1.19.2
+psycopg[binary]==3.3.5
+pwdlib[argon2]==0.3.1

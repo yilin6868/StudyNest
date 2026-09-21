@@ -1,11 +1,14 @@
 import { test, expect } from "@playwright/test";
+import { registerAccount } from "./helpers";
+
+test.beforeEach(async ({ page }) => {
+  // 自动测试不访问外部 TTS 服务；文字交互仍按真实页面流程执行。
+  await page.route("**/api/v1/tts", (route) => route.fulfill({ status: 204 }));
+});
 
 test.describe("已登录流程", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/login");
-    await page.getByPlaceholder("邀请码").fill("DEMO123");
-    await page.getByRole("button", { name: "进入自习室" }).click();
-    await expect(page.getByText("小悟").first()).toBeVisible();
+    await registerAccount(page);
   });
 
   test("核心闭环：聊天 → 专注 → 我的", async ({ page }) => {
@@ -32,7 +35,19 @@ test("未登录访问首页跳转登录页", async ({ page }) => {
 
 test("错误邀请码被拒", async ({ page }) => {
   await page.goto("/login");
-  await page.getByPlaceholder("邀请码").fill("WRONG");
-  await page.getByRole("button", { name: "进入自习室" }).click();
-  await expect(page.getByText("邀请码无效")).toBeVisible();
+  await page.getByRole("button", { name: "注册账号" }).click();
+  await page.getByLabel("邀请码").fill("WRONG");
+  await page.getByLabel("用户名").fill("wrong_invite_user");
+  await page.getByLabel("密码", { exact: true }).fill("Password123");
+  await page.getByLabel("确认密码").fill("Password123");
+  await page.getByRole("button", { name: "注册并进入" }).click();
+  await expect(page.getByText("邀请码无效、已过期或已用完")).toBeVisible();
+});
+
+test("无效登录凭证会被后端拒绝并返回登录页", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem("sb_token", "invalid-or-expired-token");
+  });
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/login/);
 });

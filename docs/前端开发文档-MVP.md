@@ -1,5 +1,7 @@
 # 前端开发文档（MVP 阶段）｜AI 学习搭子 · 自习室
 
+> ⚠️ **历史版本**：本文记录已归档的后端内嵌 H5，不代表当前正式前端。当前正式前端位于 `frontend/`。
+>
 > 配套：《前端技术适配声明》、PRD《study-buddy.md》、后端 routes.py / schemas.py
 > 状态：✅ MVP 前端已落地，本文档记录当前实现
 > 前端形态：单文件 H5（`backend/app/static/index.html`，原生 HTML/CSS/JS）

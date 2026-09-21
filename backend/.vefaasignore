@@ -2,9 +2,13 @@
 .venv/
 venv/
 data/
+*.db
+*.sqlite3
 __pycache__/
 *.pyc
 .pytest_cache/
+.coverage
+htmlcov/
 .env
 .env.local
 .vefaas/

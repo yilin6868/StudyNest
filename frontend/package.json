@@ -4,10 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "dev:e2e": "next dev --webpack",
+    "build": "next build --webpack",
+    "build:standalone": "npm run build && node scripts/prepare-standalone.mjs",
+    "build:turbopack": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:e2e": "playwright test"
+    "test:e2e": "../scripts/run-e2e.sh",
+    "test:e2e:direct": "playwright test"
   },
   "dependencies": {
     "next": "16.3.3",

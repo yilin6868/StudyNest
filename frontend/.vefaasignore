@@ -11,6 +11,16 @@
 site-packages/
 __pycache__/
 
+# Node dependencies and local build/test output (the platform rebuilds from source)
+node_modules/
+.next/
+out/
+build/
+coverage/
+test-results/
+playwright-report/
+e2e/
+
 # IDE and editors
 .idea/
 .vscode/
@@ -20,6 +30,11 @@ __pycache__/
 # System files
 .DS_Store
 Thumbs.db
+
+# Local secrets and logs
+.env
+.env.*
+*.log
 
 # veFaaS CLI config
 .vefaas/

@@ -1,24 +1,55 @@
-"""统计与目标服务：基于结构化 JSON 文件持久化，进程重启可恢复。"""
-from datetime import date, datetime, timedelta
+"""统计与目标服务：统计从每日历史事实实时计算。"""
 
-from ..core.config import settings
+from datetime import date, timedelta
+
+from ..core.time import now_local, today_local
+from .history import HistoryService
 from .store import JsonStore
 
 SCHEMA_VERSION = 1
 
 
-def _today() -> str:
-    return datetime.now().strftime("%Y-%m-%d")
+def _non_negative_int(value: object) -> int:
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError):
+        return 0
 
 
-def _default_stats() -> dict:
+def calculate_stats(days: dict, today: date) -> dict:
+    """根据历史记录计算今日、本周和连续学习数据。"""
+    studied_dates: set[date] = set()
+    for raw_date, raw_day in days.items():
+        if not isinstance(raw_date, str) or not isinstance(raw_day, dict):
+            continue
+        try:
+            parsed = date.fromisoformat(raw_date)
+        except ValueError:
+            continue
+        if parsed <= today and _non_negative_int(raw_day.get("tomato")) > 0:
+            studied_dates.add(parsed)
+
+    today_record = days.get(today.isoformat())
+    if not isinstance(today_record, dict):
+        today_record = {}
+
+    monday = today - timedelta(days=today.weekday())
+    week_days = sorted(
+        studied.isoformat() for studied in studied_dates if monday <= studied <= today
+    )
+
+    cursor = today if today in studied_dates else today - timedelta(days=1)
+    streak = 0
+    while cursor in studied_dates:
+        streak += 1
+        cursor -= timedelta(days=1)
+
     return {
-        "schemaVersion": SCHEMA_VERSION,
-        "date": _today(),
-        "tomato": 0,
-        "minutes": 0,
-        "streak": 0,
-        "weekDays": [],
+        "date": today.isoformat(),
+        "tomato": _non_negative_int(today_record.get("tomato")),
+        "minutes": _non_negative_int(today_record.get("minutes")),
+        "streak": streak,
+        "weekDays": week_days,
     }
 
 
@@ -26,49 +57,18 @@ class StatsService:
     def __init__(self, store: JsonStore):
         self.store = store
 
-    def get(self) -> dict:
-        raw = self.store.read("stats", _default_stats())
-        today = _today()
+    def get(self, *, today: date | None = None) -> dict:
+        history = HistoryService(self.store).get()
+        return calculate_stats(history["days"], today or today_local())
 
-        # 跨天：番茄数/分钟归零，streak 按"昨天是否有记录"延续
-        if raw.get("date") != today:
-            yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-            streak = int(raw.get("streak", 0)) if raw.get("date") == yesterday else 0
-            raw = {**_default_stats(), "date": today, "streak": streak}
-
-        # 字段补齐（兼容旧数据 / 缺字段）
-        for k, v in _default_stats().items():
-            raw.setdefault(k, v)
-        raw["schemaVersion"] = SCHEMA_VERSION
-        return raw
-
-    def save(self, stats: dict) -> dict:
-        stats["schemaVersion"] = SCHEMA_VERSION
-        self.store.write("stats", stats)
-        return stats
-
-    def complete(self, minutes: int = 25) -> dict:
-        stats = self.get()
-        stats["tomato"] = int(stats.get("tomato", 0)) + 1
-        stats["minutes"] = int(stats.get("minutes", 0)) + int(minutes)
-        stats["streak"] = max(1, int(stats.get("streak", 0)))
-
-        week_days = {d for d in stats.get("weekDays", []) if self._in_this_week(d)}
-        week_days.add(_today())
-        stats["weekDays"] = sorted(week_days)
-        return self.save(stats)
-
-    @staticmethod
-    def _in_this_week(d: str) -> bool:
-        """周一为一周开始。"""
-        try:
-            dt = datetime.strptime(d, "%Y-%m-%d").date()
-        except ValueError:
-            return False
-        today = date.today()
-        monday = today - timedelta(days=today.weekday())
-        sunday = monday + timedelta(days=6)
-        return monday <= dt <= sunday
+    def complete(self, minutes: int, session_id: str) -> dict:
+        completed_at = now_local()
+        HistoryService(self.store).record(
+            minutes,
+            session_id,
+            completed_at=completed_at,
+        )
+        return self.get(today=completed_at.date())
 
 
 class GoalService:

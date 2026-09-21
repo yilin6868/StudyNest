@@ -1,17 +1,33 @@
-"""每日学习历史：记录每天番茄数/时长，用于「我的」板块回顾。"""
+"""每日学习事实：保存历史，并用 sessionId 防止重复结算。"""
+
 from datetime import datetime
 
+from ..core.time import now_local
 from .store import JsonStore
 
-SCHEMA_VERSION = 1
-
-
-def _today() -> str:
-    return datetime.now().strftime("%Y-%m-%d")
+SCHEMA_VERSION = 2
 
 
 def _default() -> dict:
-    return {"schemaVersion": SCHEMA_VERSION, "days": {}}
+    return {"schemaVersion": SCHEMA_VERSION, "days": {}, "completedSessions": {}}
+
+
+def _non_negative_int(value: object) -> int:
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _normalize(data: dict) -> dict:
+    days = data.get("days")
+    sessions = data.get("completedSessions")
+    return {
+        **data,
+        "schemaVersion": SCHEMA_VERSION,
+        "days": days if isinstance(days, dict) else {},
+        "completedSessions": sessions if isinstance(sessions, dict) else {},
+    }
 
 
 class HistoryService:
@@ -19,21 +35,38 @@ class HistoryService:
         self.store = store
 
     def get(self) -> dict:
-        data = self.store.read("history", _default())
-        days = data.get("days")
-        if not isinstance(days, dict):
-            days = {}
-        data["days"] = days
-        data["schemaVersion"] = SCHEMA_VERSION
-        return data
+        return _normalize(self.store.read("history", _default()))
 
-    def record(self, minutes: int) -> dict:
-        """完成一个番茄钟：今日番茄数 +1、时长累加。"""
-        data = self.get()
-        today = _today()
-        day = dict(data["days"].get(today, {"tomato": 0, "minutes": 0}))
-        day["tomato"] = int(day.get("tomato", 0)) + 1
-        day["minutes"] = int(day.get("minutes", 0)) + int(minutes)
-        data["days"][today] = day
-        self.store.write("history", data)
-        return data
+    def record(
+        self,
+        minutes: int,
+        session_id: str,
+        *,
+        completed_at: datetime | None = None,
+    ) -> tuple[dict, bool]:
+        """原子记录一轮专注；已存在的 sessionId 返回原数据。"""
+        completed_at = completed_at or now_local()
+        day_key = completed_at.date().isoformat()
+        created = False
+
+        def apply(raw: dict) -> dict:
+            nonlocal created
+            data = _normalize(raw)
+            if session_id in data["completedSessions"]:
+                return data
+
+            raw_day = data["days"].get(day_key)
+            day = dict(raw_day) if isinstance(raw_day, dict) else {}
+            day["tomato"] = _non_negative_int(day.get("tomato")) + 1
+            day["minutes"] = _non_negative_int(day.get("minutes")) + int(minutes)
+            data["days"][day_key] = day
+            data["completedSessions"][session_id] = {
+                "date": day_key,
+                "minutes": int(minutes),
+                "completedAt": completed_at.isoformat(),
+            }
+            created = True
+            return data
+
+        data = self.store.update("history", _default(), apply)
+        return data, created
